@@ -30,6 +30,8 @@ export default function VotePage() {
   const [form, setFormState] = useState<FormState>(() => safeStore.get<FormState>('form') || { name: '', phone: '', consent: false });
   const [online, setOnline] = useState(navigator.onLine);
   const [toast, setToast] = useState<string | null>(null);
+  const [qrEntry, setQrEntry] = useState<'none' | 'checking' | 'ready'>(() =>
+    new URLSearchParams(window.location.search).has('entry') || new URLSearchParams(window.location.hash.slice(1)).has('entry') ? 'checking' : 'none');
 
   const setChallenge = (c: Challenge | null) => { setChallengeState(c); if (c) safeStore.set('challenge', c); else safeStore.del('challenge'); };
   const setForm = (f: FormState) => { setFormState(f); safeStore.set('form', f); };
@@ -48,6 +50,35 @@ export default function VotePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // A rotating venue QR is exchanged immediately for a short-lived browser grant.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(url.hash.slice(1));
+    const token = url.searchParams.get('entry') || hashParams.get('entry');
+    if (!token) return;
+    let active = true;
+    const cleanEntryFromUrl = () => {
+      url.searchParams.delete('entry');
+      hashParams.delete('entry');
+      url.hash = hashParams.toString();
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    };
+    api('/api/public/qr-entry', { method: 'POST', body: { token } })
+      .then(() => {
+        if (!active) return;
+        setQrEntry('ready');
+        cleanEntryFromUrl();
+        void load();
+      })
+      .catch(() => {
+        if (!active) return;
+        setQrEntry('none');
+        cleanEntryFromUrl();
+        setToast('That QR code expired. Scan the current code on the venue screen.');
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
   console.log('GPS DEBUG — data:', data);
@@ -115,7 +146,9 @@ useEffect(() => {
   const ctx = { t, lang, data, session, setSession, location, setLocation, setOnSite, reload: load, setToast };
 
   let screen: React.ReactNode;
-  if (!data) {
+  if (qrEntry === 'checking') {
+    screen = <div className="loading"><span className="spinner" /></div>;
+  } else if (!data) {
     screen = loadError ? <ErrorScreen message={loadError} /> : <div className="loading"><span className="spinner" /></div>;
   } else if (!data.voting.open) {
     screen = <ClosedScreen />;

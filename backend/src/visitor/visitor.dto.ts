@@ -23,6 +23,10 @@ export class VerifyOtpDto {
   @IsString() @MaxLength(20) code: string;
 }
 
+export class VoteQrEntryDto {
+  @IsString() @MaxLength(120) token: string;
+}
+
 export class CastVoteDto {
   @IsInt() categoryId: number;
   @IsInt() exhibitorId: number;

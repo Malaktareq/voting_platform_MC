@@ -6,11 +6,12 @@ import { SmsService } from '../sms/sms.service';
 import { AccessService } from './access.service';
 import { AuditService } from './audit.service';
 import { RateLimitService } from './rate-limit.service';
+import { VoteQrService } from './vote-qr.service';
 
 /** Cross-cutting services shared by every feature module. */
 @Global()
 @Module({
-  providers: [BusService, SettingsService, AccessService, SmsService, AuditService, RateLimitService, ResultsService],
-  exports: [BusService, SettingsService, AccessService, SmsService, AuditService, RateLimitService, ResultsService],
+  providers: [BusService, SettingsService, AccessService, SmsService, AuditService, RateLimitService, ResultsService, VoteQrService],
+  exports: [BusService, SettingsService, AccessService, SmsService, AuditService, RateLimitService, ResultsService, VoteQrService],
 })
 export class CoreModule {}

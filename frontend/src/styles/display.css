@@ -157,6 +157,8 @@ body.tv .hdr-status {
   padding-top: 1.3rem;
 }
 
+body.tv .hdr-status .stat { display: none; }
+
 body.tv .stat {
   display: block;
   padding: .4rem .8rem;
@@ -595,19 +597,22 @@ body.tv .ftr {
   z-index: 2;
   display: grid;
   place-items: center;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  padding: 0 clamp(1.5rem, 3vw, 3rem);
+  box-sizing: border-box;
+  background: #07177e;
 }
 
 body.tv .cta {
-  width: min(100%, 66rem);
-  min-height: 9.5rem;
+  width: min(100%, 86rem);
+  min-height: 10.5rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2rem;
   padding: 1rem 2rem 1rem 2.5rem;
-  border: .08rem solid rgb(0 0 123 / 12%);
-  border-radius: 1.35rem;
-  background: var(--white);
+  background: transparent;
 }
 
 body.tv .cta-copy {
@@ -617,7 +622,7 @@ body.tv .cta-copy {
 
 body.tv .cta-copy span {
   display: block;
-  color: rgb(0 0 123 / 60%);
+  color: var(--yellow);
   font-size: clamp(.72rem, 1vw, .9rem);
   font-weight: 850;
   letter-spacing: .08em;
@@ -627,7 +632,7 @@ body.tv .cta-copy span {
 body.tv .cta-copy b {
   display: block;
   margin: .45rem 0 0;
-  color: var(--navy);
+  color: #fff;
   font-family: var(--font-display);
   font-size: clamp(1.6rem, 2.4vw, 2.4rem);
   line-height: 1;
@@ -639,7 +644,7 @@ body.tv .cta-copy b {
 }
 
 body.tv .cta-copy b em {
-  color: var(--purple);
+  color: #a23cff;
   font-style: normal;
 }
 
@@ -657,7 +662,10 @@ body.tv .qr {
   place-items: center;
   min-width: 10rem;
   padding-left: 2.2rem;
-  border-left: .08rem solid rgb(0 0 123 / 24%);
+  padding: .7rem;
+  border: 0;
+  border-radius: .8rem;
+  background: #fff;
 }
 
 body.tv .qr img {
@@ -669,8 +677,8 @@ body.tv .qr img {
 body.tv .note {
   min-width: 8.1rem;
   padding-left: 2rem;
-  border-left: .08rem solid rgb(0 0 123 / 24%);
-  color: var(--navy);
+  border-left: 0;
+  color: #fff;
   font-weight: 900;
   text-align: center;
 }

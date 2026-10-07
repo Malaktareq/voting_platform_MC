@@ -36,6 +36,13 @@ export const config = {
     data: derive('data-encryption'),
     phoneHmac: derive('phone-hmac'),
     otpHmac: derive('otp-hmac'),
+    voteQr: derive('vote-qr'),
+  },
+
+  voteQr: {
+    rotateSeconds: 20,
+    grantSeconds: 600,
+    entryRequired: env.REQUIRE_DYNAMIC_VOTE_QR !== 'false' && env.NODE_ENV !== 'test',
   },
 
   otp: {

@@ -7,12 +7,13 @@ import { AppError } from '../common/http-error';
 import { AuditService } from '../core/audit.service';
 import { SettingsService } from '../settings/settings.service';
 import { AllSettings } from '../settings/settings.types';
+import { VoteQrService } from '../core/vote-qr.service';
 import { AccessSettingsDto, DisplaySettingsDto, EventSettingsDto, VotingSettingsDto } from './admin.dto';
 
 /** Voting window (F10), on-site rules (F11), event details and display key. */
 @Injectable()
 export class EventService {
-  constructor(private readonly settings: SettingsService, private readonly audit: AuditService) {}
+  constructor(private readonly settings: SettingsService, private readonly audit: AuditService, private readonly voteQr: VoteQrService) {}
 
   async get(ip: string) {
     const s = await this.settings.getAll(true);
@@ -79,11 +80,14 @@ export class EventService {
   async links(isAdmin: boolean) {
     const s = await this.settings.getAll(true);
     const base = config.publicUrl.replace(/\/$/, '');
+    const qr = this.voteQr.issue();
     const voteUrl = `${base}/`;
+    const qrUrl = `${voteUrl}#entry=${encodeURIComponent(qr.token)}`;
     return {
       voteUrl,
       displayUrl: isAdmin ? `${base}/display?key=${encodeURIComponent(s.display.key || '')}` : null,
-      voteQr: await QRCode.toDataURL(voteUrl, { margin: 1, width: 480, errorCorrectionLevel: 'M' }),
+      voteQr: await QRCode.toDataURL(qrUrl, { margin: 1, width: 480, errorCorrectionLevel: 'M' }),
+      voteQrRefreshAt: qr.refreshAt,
     };
   }
 
