@@ -26,32 +26,6 @@ function ArrowIcon() {
   );
 }
 
-function CableLines() {
-  return (
-    <svg className="cable-lines" viewBox="0 0 1024 1536" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M631 283v26c0 109 39 142 142 211" />
-      <path d="M666 196v101c0 124 40 153 154 229" />
-      <path d="M702 143v157c0 133 54 174 177 253" />
-      <path className="aqua" d="M824 285v15c0 143 66 166 187 263" />
-      <circle className="cyan-dot" cx="631" cy="284" r="13" />
-      <circle className="yellow-dot" cx="666" cy="196" r="13" />
-      <circle className="blue-dot" cx="702" cy="143" r="13" />
-      <circle className="purple-dot" cx="824" cy="285" r="13" />
-    </svg>
-  );
-}
-
-function Gear() {
-  return (
-    <div className="login-gear" aria-hidden="true">
-      {Array.from({ length: 8 }, (_, index) => (
-        <span key={index} style={{ transform: `translate(-50%, -50%) rotate(${index * 45}deg)` }} />
-      ))}
-      <div className="gear-ring" />
-    </div>
-  );
-}
-
 /** Step 1 — name + mobile number (F5). */
 export function RegisterScreen({ form, setForm, setChallenge }: {
   form: FormState; setForm: (f: FormState) => void; setChallenge: (c: Challenge) => void;
@@ -94,25 +68,17 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
   return (
     <section className="voter-login" aria-labelledby="voter-login-title">
       <div className="paper-noise" aria-hidden="true" />
-      <div className="purple-slab" aria-hidden="true" />
-      <div className="cyan-pill" aria-hidden="true" />
-      <div className="blue-orb" aria-hidden="true" />
-      <div className="magenta-angle" aria-hidden="true" />
-      <div className="yellow-ribbon" aria-hidden="true" />
-      <div className="yellow-arc" aria-hidden="true" />
-      <div className="line-rings" aria-hidden="true" />
-      <Gear />
-      <CableLines />
+      <img className="asset-decor asset-purple-corner" src="/assets/corner-purple.svg" alt="" />
+      <img className="asset-decor asset-turquoise-circle" src="/assets/circle-turquoise.svg" alt="" />
+      <img className="asset-decor asset-yellow-circle" src="/assets/circle-yellow.svg" alt="" />
+      <img className="asset-decor asset-purple-arcs" src="/assets/arcs-purple.svg" alt="" />
+      <img className="asset-decor asset-gear" src="/assets/gear-navy.svg" alt="" />
+      <img className="asset-decor asset-connectors" src="/assets/connectors.svg" alt="" />
+      <img className="asset-decor asset-yellow-rays" src="/assets/rays-yellow.svg" alt="" />
+      <img className="asset-decor asset-royal-accent" src="/assets/accent-royal.svg" alt="" />
 
       <header className="maker-brand" aria-label="The Maker Collective 2026">
-        <div className="year" aria-hidden="true">
-          <span>20</span>
-          <span>26</span>
-        </div>
-        <div className="brand-copy">
-          <div className="arabic" lang="ar" dir="rtl">ملتقى الصنّاع</div>
-          <div className="english">The Maker Collective</div>
-        </div>
+        <img src="/assets/maker-logo.png" alt="The Maker Collective 2026 — organized by Crown Prince Foundation" />
       </header>
 
       <figure className="workshop-photo">
@@ -121,12 +87,14 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
       </figure>
 
       <form className="login-card" noValidate onSubmit={submit}>
+        <img className="card-burgundy-asset" src="/assets/corner-burgundy.svg" alt="" />
         <p className="eyebrow">{t('heroKicker')}</p>
         <h1 id="voter-login-title">
           Pick your
           <br />
-          favourite makers
+          <em>favourite makers</em>
         </h1>
+        <span className="title-rule" aria-hidden="true" />
         <label className="login-design-field" htmlFor="f-name">
           <span className="sr-only">{t('name')}</span>
           <span className="field-icon user-icon"><UserIcon /></span>

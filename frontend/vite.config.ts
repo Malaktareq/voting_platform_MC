@@ -7,6 +7,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    strictPort: true,
+    hmr: true,
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: false },
       '/img': { target: 'http://localhost:3000', changeOrigin: false },
