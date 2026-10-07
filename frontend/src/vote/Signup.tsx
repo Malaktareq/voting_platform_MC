@@ -30,7 +30,7 @@ function ArrowIcon() {
 export function RegisterScreen({ form, setForm, setChallenge }: {
   form: FormState; setForm: (f: FormState) => void; setChallenge: (c: Challenge) => void;
 }) {
-  const { t, location, setOnSite, setLocation, reload } = useVote();
+  const { t, location, setOnSite, setLocation, reload, data } = useVote();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -94,6 +94,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
           <br />
           <em>favourite makers</em>
         </h1>
+        {data.qrEntryRequired && !data.qrEntryAllowed && <p className="qr-required" role="note">{t('qrRequired')}</p>}
         <span className="title-rule" aria-hidden="true" />
         <label className="login-design-field" htmlFor="f-name">
           <span className="sr-only">{t('name')}</span>

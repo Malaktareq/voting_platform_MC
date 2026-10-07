@@ -13,6 +13,7 @@ import NotFound from '../NotFound';
 const Exhibitors = lazy(() => import('./views/Exhibitors'));
 const Categories = lazy(() => import('./views/Categories'));
 const Results = lazy(() => import('./views/Results'));
+const LiveData = lazy(() => import('./views/LiveData'));
 const Visitors = lazy(() => import('./views/Visitors'));
 const Access = lazy(() => import('./views/Access'));
 const Security = lazy(() => import('./views/Security'));
@@ -23,6 +24,7 @@ const NAV: [string, string, boolean?][] = [
   ['exhibitors', 'Exhibitors'],
   ['categories', 'Categories'],
   ['results', 'Results & export'],
+  ['live-data', 'Live data'],
   ['visitors', 'Visitors', true],
   ['access', 'Event & access'],
   ['security', 'Security'],
@@ -94,11 +96,12 @@ function Shell({ showMfaTip }: { showMfaTip: boolean }) {
       <main className="main">
         <Suspense fallback={<Spinner />}>
           <Routes>
-            <Route index element={<Navigate to="overview" replace />} />
+            <Route index element={<Navigate to="/admin/overview" replace />} />
             <Route path="overview" element={<Overview />} />
             <Route path="exhibitors" element={<Exhibitors />} />
             <Route path="categories" element={<Categories />} />
             <Route path="results" element={<Results />} />
+            <Route path="live-data" element={<LiveData />} />
             {isAdmin && <Route path="visitors" element={<Visitors />} />}
             <Route path="access" element={<Access />} />
             <Route path="security" element={<Security />} />

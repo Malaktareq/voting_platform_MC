@@ -8,7 +8,7 @@ import { useAction } from '../useAction';
 import { LoadError, PageHead, Spinner, Tile, useAdmin, useLoad } from '../ui';
 
 interface Stats { verified_visitors: number; votes: number; votes_last_5m: number; otps_last_hour: number; live_screens_this_node: number; redis: string; exhibitors: number }
-interface Links { voteUrl: string; displayUrl: string | null; voteQr: string }
+interface Links { voteUrl: string; displayUrl: string | null; voteQr: string; voteQrRefreshAt: number }
 
 export default function Overview() {
   const { isAdmin, toast, confirm } = useAdmin();
@@ -24,9 +24,33 @@ export default function Overview() {
   const [closesAt, setClosesAt] = useState('');
   const { busy, pending, run } = useAction();
   const [currentVoting, setCurrentVoting] = useState<{ voting: VotingState; enabled: boolean } | null>(null);
+  const [currentLinks, setCurrentLinks] = useState<Links | null>(null);
 
   useEffect(() => {
     if (data) setCurrentVoting({ voting: data[0].voting, enabled: data[0].settings.voting.open });
+  }, [data]);
+
+  // Keep the venue QR current using the server-provided rotation time.
+  useEffect(() => {
+    if (!data) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      try {
+        const next = await api<Links>('/api/admin/links');
+        if (!active) return;
+        setCurrentLinks(next);
+        timer = setTimeout(refresh, Math.max(250, next.voteQrRefreshAt - Date.now() + 100));
+      } catch {
+        if (active) timer = setTimeout(refresh, 1500);
+      }
+    };
+    setCurrentLinks(data[1]);
+    timer = setTimeout(refresh, Math.max(250, data[1].voteQrRefreshAt - Date.now() + 100));
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [data]);
 
   // Refresh the authoritative state at schedule boundaries and after missed live updates.
@@ -157,7 +181,8 @@ export default function Overview() {
 
   if (error) return <LoadError error={error} />;
   if (!data) return <Spinner />;
-  const [{ settings: s }, links] = data;
+  const [{ settings: s }, initialLinks] = data;
+  const links = currentLinks || initialLinks;
   const voting = currentVoting?.voting ?? data[0].voting;
   const open = currentVoting?.enabled ?? s.voting.open;
   const stateLabel = voting.open ? 'Voting is OPEN' : voting.reason === 'not_started' ? 'Scheduled — not started yet' : voting.reason === 'ended' ? 'Ended (schedule)' : 'Voting is CLOSED';
@@ -252,6 +277,7 @@ export default function Overview() {
           <div className="stack">
             <p className="eyebrow">Visitor voting page</p>
             <code className="url">{links.voteUrl}</code>
+            <p className="muted small">This QR changes every 20 seconds. Scan it from the venue screen; printed copies expire.</p>
             <div className="actions">
               <button className="btn" onClick={() => printPoster(links.voteQr, links.voteUrl, toast)}>Print QR poster</button>
               <a className="btn" href={links.voteQr} download="mc2026-vote-qr.png">Download QR</a>

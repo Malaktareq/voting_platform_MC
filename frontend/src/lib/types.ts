@@ -9,6 +9,8 @@ export interface PublicState {
   event: { name: string; tagline: string; venue: string };
   voting: VotingState;
   access: { allowed: boolean; needsLocation: boolean; mode: string };
+  qrEntryRequired?: boolean;
+  qrEntryAllowed?: boolean;
   categories: Category[];
   exhibitors: Exhibitor[];
   session: VisitorSession | null;

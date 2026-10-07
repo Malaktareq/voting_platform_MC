@@ -39,7 +39,11 @@ export default function Access() {
   if (!data) return <Spinner />;
   const dis = !isAdmin;
   const usesGeo = ['geo', 'ip_or_geo', 'ip_and_geo'].includes(mode);
-  const mapHref = `https://www.openstreetmap.org/?mlat=${geo.lat}&mlon=${geo.lng}#map=17/${geo.lat}/${geo.lng}`;
+  const lat = Number.parseFloat(geo.lat);
+  const lng = Number.parseFloat(geo.lng);
+  const mapHref = Number.isFinite(lat) && Number.isFinite(lng)
+    ? `https://www.openstreetmap.org/?mlat=${encodeURIComponent(String(lat))}&mlon=${encodeURIComponent(String(lng))}#map=17/${encodeURIComponent(String(lat))}/${encodeURIComponent(String(lng))}`
+    : 'https://www.openstreetmap.org/';
 
   const saveAccess = () => run('access', async () => {
     try {
