@@ -18,9 +18,7 @@ import { VoteContext } from './VoteContext';
 export default function VotePage() {
   console.log('VOTE PAGE IS RUNNING');
   useBodyClass('vote');
-  const [lang, setLang] = useState<Lang>(
-    () => safeStore.get<Lang>('lang', true) || ((navigator.language || '').startsWith('ar') ? 'ar' : 'en'),
-  );
+  const [lang, setLang] = useState<Lang>('en');
   const t = useMemo(() => makeT(lang), [lang]);
 
   const [data, setData] = useState<PublicState | null>(null);

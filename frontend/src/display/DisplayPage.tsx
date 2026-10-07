@@ -5,7 +5,36 @@ import { useBodyClass } from '../lib/util';
 import '../styles/display.css';
 
 const TOP_N = 3;
-const DISPLAY_ACCENTS = ['#7b2ff0', '#2476ef', '#f8bd18', '#16bbb0', '#a52a3a'];
+const DISPLAY_ACCENTS = ['#7f32d9', '#4a68d8', '#f8d749', '#74dccf', '#a52a3a'];
+
+const SHAPES = ['gear', 'circle', 'triangle', 'diamond', 'spark'];
+
+function shapeFor(slug: string, name: string, index: number): string {
+  const key = `${slug} ${name}`.toLowerCase();
+  if (key.includes('innov')) return 'gear';
+  if (key.includes('impact') || key.includes('communit')) return 'circle';
+  if (key.includes('craft') || key.includes('entrepren')) return 'triangle';
+  return SHAPES[index % SHAPES.length];
+}
+
+function GearIcon() {
+  return (
+    <svg className="gear-icon" viewBox="0 0 72 72" aria-hidden="true">
+      <g className="circuit">
+        <path d="M7 15h12l7 7M4 29h15l7 4M7 54h12l8-8M14 64V53l9-8" />
+        <circle cx="5" cy="15" r="3" />
+        <circle cx="3" cy="29" r="3" />
+        <circle cx="6" cy="54" r="3" />
+        <circle cx="14" cy="66" r="3" />
+      </g>
+      <path
+        className="gear"
+        d="m48 10 4 7 8-1 3 8 7 4-3 8 3 8-7 4-3 8-8-1-4 7-8-3-8 3-4-7-8 1-3-8-7-4 3-8-3-8 7-4 3-8 8 1 4-7 8 3 8-3Z"
+      />
+      <circle className="gear-center" cx="40" cy="36" r="11" />
+    </svg>
+  );
+}
 
 /**
  * Live results dashboard for TV / projector (F7, F8).
@@ -81,9 +110,10 @@ export default function DisplayPage() {
     <>
       <div className="display-stage" aria-hidden="true">
         <span className="shape shape-gear" />
-        <span className="shape shape-sun" />
-        <span className="shape shape-orbit" />
-        <span className="shape shape-swoop" />
+        <span className="shape shape-yellow" />
+        <span className="shape shape-navy" />
+        <span className="shape shape-aqua" />
+        <span className="shape shape-violet" />
       </div>
 
       <header className="hdr">
@@ -92,7 +122,7 @@ export default function DisplayPage() {
         </div>
         <div className="hdr-title">
           <p className="kicker">{snap.event.name || 'The Maker Collective 2026'}</p>
-          <h1>Live Voting Results</h1>
+          <h1><span>Live</span> Voting Results</h1>
           <p className="dek">See the most voted makers in each category</p>
         </div>
         <div className="hdr-status">
@@ -113,7 +143,7 @@ export default function DisplayPage() {
         <div className="cta">
           <div className="cta-copy">
             <span>Be part of The Maker Collective 2026</span>
-            <b>Scan the QR code to cast your vote</b>
+            <b>Scan the QR code to <em>cast your vote</em></b>
             <i />
           </div>
           {qr && snap.voting.open ? (
@@ -147,7 +177,7 @@ function Column({ c, index, finalMode, showCounts, prev }: { c: CategoryResult; 
   const rows = leaders.length > 1 && lead ? [lead, ...nonLeaders.slice(0, TOP_N - 1)] : c.standings.slice(0, TOP_N);
   const displayedCount = leaders.length > 1 ? leaders.length + rows.length - 1 : rows.length;
   const categoryStyle = { '--accent': DISPLAY_ACCENTS[index % DISPLAY_ACCENTS.length] } as React.CSSProperties;
-  const shape = ['network', 'circle', 'triangle', 'diamond', 'spark'][index % 5];
+  const shape = shapeFor(c.slug, c.name, index);
 
   // FLIP: animate rows from their previous position when the ranking changes
   const listRef = useRef<HTMLOListElement>(null);
@@ -169,7 +199,7 @@ function Column({ c, index, finalMode, showCounts, prev }: { c: CategoryResult; 
   return (
     <section className={`col col-${index % 5}${finalMode ? ' is-final' : ''}`} style={categoryStyle}>
       <div className="col-head">
-        <span className={`cat-mark ${shape}`} aria-hidden="true"><i /></span>
+        <span className={`cat-mark ${shape}`} aria-hidden="true">{shape === 'gear' ? <GearIcon /> : <i />}</span>
         <div>
           <h2>{c.name}</h2>
           {c.description && <p>{c.description}</p>}
