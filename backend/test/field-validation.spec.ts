@@ -3,23 +3,8 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { CategoryDto, CreateUserDto, EventSettingsDto, ExhibitorFormDto, GeofenceDto } from '../src/admin/admin.dto';
 import { CastVoteDto } from '../src/visitor/visitor.dto';
-import { CatalogService } from '../src/admin/catalog.service';
 
 describe('create and edit field validation', () => {
-  it.each([-1, 1.5, '1', '', 'text', null, NaN, Infinity, 2147483648])('rejects invalid category order %s in the API and both save paths', async (sort_order) => {
-    const body = { name: 'Award', sort_order };
-    expect(validateSync(plainToInstance(CategoryDto, body)).length).toBeGreaterThan(0);
-    const ds = { query: jest.fn() };
-    const service = new CatalogService(ds as any, {} as any, {} as any);
-    await expect(service.createCategory('admin', '127.0.0.1', body as any)).rejects.toMatchObject({ response: { error: 'bad_order' } });
-    await expect(service.updateCategory('admin', '127.0.0.1', 1, body as any)).rejects.toMatchObject({ response: { error: 'bad_order' } });
-    expect(ds.query).not.toHaveBeenCalled();
-  });
-
-  it.each([undefined, 0, 1, 2147483647])('accepts valid category order %s', (sort_order) => {
-    expect(validateSync(plainToInstance(CategoryDto, { name: 'Award 2026', sort_order }))).toHaveLength(0);
-  });
-
   it.each([
     [CategoryDto, { name: 123 }],
     [CategoryDto, { name: '   ' }],

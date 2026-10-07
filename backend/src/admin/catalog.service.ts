@@ -33,21 +33,19 @@ export class CatalogService {
   }
 
   // ------------------------------------------------------------------ categories
+  /** Categories are always listed in the order they were created. */
   listCategories() {
     return this.ds.query(`
       SELECT c.*, COUNT(ec.exhibitor_id)::int AS exhibitor_count
         FROM categories c LEFT JOIN exhibitor_categories ec ON ec.category_id = c.id
-       GROUP BY c.id ORDER BY c.sort_order, c.id`);
+       GROUP BY c.id ORDER BY c.id`);
   }
 
   private categoryInput(b: CategoryDto) {
     const name = String(b.name || '').trim();
     if (!name || name.length > 80) throw new AppError(400, 'bad_name', 'Category name is required (max 80 chars).');
-    if (b.sort_order !== undefined && (!Number.isInteger(b.sort_order) || b.sort_order! < 0 || b.sort_order! > 2147483647)) {
-      throw new AppError(400, 'bad_order', 'Display order must be a whole number between 0 and 2147483647.');
-    }
     const slug = String(b.slug || name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `cat-${Date.now()}`;
-    return { name, slug, description: String(b.description || '').trim(), sort_order: b.sort_order === undefined ? 0 : b.sort_order, is_active: b.is_active !== false };
+    return { name, slug, description: String(b.description || '').trim(), is_active: b.is_active !== false };
   }
 
   async createCategory(actor: string, ip: string, b: CategoryDto) {
@@ -55,8 +53,8 @@ export class CatalogService {
     try {
       const category = await this.transaction(async m => {
         const rows = await m.query(
-          'INSERT INTO categories (slug, name, description, sort_order, is_active) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-          [c.slug, c.name, c.description, c.sort_order, c.is_active]);
+          'INSERT INTO categories (slug, name, description, is_active) VALUES ($1,$2,$3,$4) RETURNING *',
+          [c.slug, c.name, c.description, c.is_active]);
         await this.audit.record(actor, 'category_created', { id: rows[0].id, name: c.name }, ip, m);
         return rows[0];
       });
@@ -72,8 +70,8 @@ export class CatalogService {
     const c = this.categoryInput(b);
     const category = await this.transaction(async m => {
       const result = await m.query(
-        'UPDATE categories SET slug=$2, name=$3, description=$4, sort_order=$5, is_active=$6 WHERE id=$1 RETURNING *',
-        [id, c.slug, c.name, c.description, c.sort_order, c.is_active]).catch((e) => {
+        'UPDATE categories SET slug=$2, name=$3, description=$4, is_active=$5 WHERE id=$1 RETURNING *',
+        [id, c.slug, c.name, c.description, c.is_active]).catch((e) => {
           if (e.code === '23505') throw new AppError(409, 'exists', 'A category with that name already exists.');
           throw e;
         });

@@ -1087,12 +1087,12 @@ describe('complete admin event workflow', () => {
       expect((await put('/api/admin/settings/voting', { open: false, opens_at: null, closes_at: null }, { cookie })).status).toBe(200);
       expect((await post('/api/admin/categories', { name: '' }, { cookie })).status).toBe(400);
       for (let i = 1; i <= 3; i++) {
-        const made = await post('/api/admin/categories', { name: `Workflow Category ${i}`, slug: `workflow-${i}`, sort_order: i }, { cookie });
+        const made = await post('/api/admin/categories', { name: `Workflow Category ${i}`, slug: `workflow-${i}` }, { cookie });
         expect(made.status).toBe(201);
         categoryIds.push(made.data.category.id);
       }
       expect((await post('/api/admin/categories', { name: 'Duplicate', slug: 'workflow-1' }, { cookie })).status).toBe(409);
-      const updatedCategory = await put(`/api/admin/categories/${categoryIds[0]}`, { name: 'Workflow Innovation', slug: 'workflow-1', sort_order: 1 }, { cookie });
+      const updatedCategory = await put(`/api/admin/categories/${categoryIds[0]}`, { name: 'Workflow Innovation', slug: 'workflow-1' }, { cookie });
       expect(updatedCategory.status).toBe(200);
       expect(updatedCategory.data.category.name).toBe('Workflow Innovation');
       expect((await get('/api/admin/categories', { cookie })).data.categories.filter((c: { id: number }) => categoryIds.includes(c.id))).toHaveLength(3);

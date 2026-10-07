@@ -72,7 +72,7 @@ export class ResultsService implements OnModuleDestroy {
   private async compute(db: DataSource | EntityManager = this.ds): Promise<ResultsSnapshot> {
     if (db instanceof DataSource) return db.transaction('REPEATABLE READ', manager => this.compute(manager));
     const queries = [
-      () => db.query('SELECT id, slug, name, description FROM categories WHERE is_active ORDER BY sort_order, id'),
+      () => db.query('SELECT id, slug, name, description FROM categories WHERE is_active ORDER BY id'),
       () => db.query(`
         SELECT ec.category_id, e.id, e.name, e.project, e.booth, e.image_id, COALESCE(v.cnt, 0)::int AS votes
           FROM exhibitor_categories ec

@@ -72,20 +72,46 @@ All event-level settings (categories, exhibitors, voting window, IP ranges, geof
 
 ## Venue network setup (on-site restriction)
 
-1. Connect a phone to the venue Wi-Fi and open `/admin → Event & access`. "Your IP as seen by the server" shows the venue's public IP. Click **Add my IP** (or enter the ISP-provided range, e.g. `/29`).
-2. Stand at the venue and press **Use my current location** to centre the geofence; 150–300 m radius suits most venues.
-3. Choose **Venue Wi-Fi OR location** so visitors on mobile data can still vote by sharing location.
-4. Test from a phone on Wi-Fi (should pass without a location prompt) and from a phone on 4G with location on (should pass) and off-site (should be refused).
+1. Connect to the venue Wi-Fi and open **Admin › Settings › On-site access**. "This computer's network" shows the address the server sees. Click **Use this network**, or type the venue's address or range (one per line). Setting up remotely works too: type the venue's values instead of using the buttons.
+2. At the venue, press **Use my location** (or type the coordinates from a map); 150–300 m radius suits most venues.
+3. Choose **Venue Wi-Fi or location** so visitors on mobile data can still vote by sharing location, or **Wi-Fi and location** for the strictest check.
+4. Test from a phone on the venue Wi-Fi (should pass) and from a phone off-site or on another network (should be refused).
 
-If the server runs **on the venue LAN** (local server option), the private ranges (`192.168.0.0/16`, etc.) work directly and the system keeps running even if the venue's internet uplink drops — only SMS delivery needs internet.
+### Local event server (phones on the same Wi-Fi)
+
+The prototype can run entirely on one computer at the venue; voting keeps working if the internet drops (only SMS delivery needs it). Two things need care on a local server:
+
+- **Phones only share GPS with HTTPS pages.**
+- **Docker Desktop (Windows/macOS) hides visitors' addresses**: every phone would appear as Docker's own gateway (e.g. `172.19.0.1`), so the IP check could not tell phones apart.
+
+`scripts/lan-gateway.mjs` solves both. It serves HTTPS to the phones with a local certificate and forwards each phone's real address to nginx.
+
+```
+phone ──HTTPS──▶ lan-gateway (:443) ──▶ nginx (127.0.0.1:3000) ──▶ app replicas
+```
+
+1. In `.env`:
+   ```
+   HTTP_PORT=3000
+   HTTP_BIND=127.0.0.1              # nginx is reachable from this computer only
+   REAL_IP_CONF=real-ip.lan.conf    # nginx trusts the address the gateway forwards
+   PUBLIC_URL=https://<laptop Wi-Fi address>   # printed by the gateway; used by the QR code
+   ```
+2. `docker compose up -d`, then `node scripts/lan-gateway.mjs` (needs `openssl` once to create `deploy/certs/`; Git for Windows includes it). Keep the gateway window open during the event.
+3. In **On-site access**, allow the Wi-Fi range the gateway prints (e.g. `192.168.1.0/24`).
+4. Phones open the printed `https://` address and accept the certificate warning once (**Advanced › Proceed**).
+
+Why it is safe: nginx is bound to `127.0.0.1`, so phones cannot reach it except through the gateway, and the gateway always overwrites `X-Forwarded-For` with the connecting phone's address, so a phone cannot claim another address. On a cloud or Linux server leave `HTTP_BIND` and `REAL_IP_CONF` unset: nginx then faces visitors directly and ignores `X-Forwarded-For`.
+
+**Demo tip:** a second network shows both checks live. Turn on the laptop's mobile hotspot before starting the gateway (Windows uses `192.168.137.0/24`) and connect a phone to it. The page loads, but the phone is not on the allowed Wi-Fi range, so it is asked for its location: deny it and voting is refused; allow it inside the venue radius and it passes (with **Wi-Fi and location**, the hotspot phone is always refused).
 
 ## Event-day runbook
 
 | When | Action |
 |---|---|
-| Day before | Rehearse with seeded data → **Results → Reset** (tick "delete visitors") → rotate display key → print QR posters from Overview |
-| Doors open | Open `/display` link on TVs; **Overview → Open voting** |
-| During | Watch Overview tiles (votes / 5 min, SMS / hour, Redis status). `/readyz` for health. |
+| Day before | Rehearse with seeded data → **Results → Reset** (tick "delete visitors") → set the venue network and location in **Settings › On-site access** |
+| Doors open | Open the results-screen link from the **Dashboard** on the TVs; **Dashboard → Open voting** |
+| During | Watch the Dashboard (votes, votes in the last 5 min, on-site protection status). `/readyz` for health. |
 | Close | **Close voting** → TV switches to "Final results" with winners highlighted → **Export CSV/JSON** |
 | After | Export opted-in visitors for outreach; purge visitor data per retention policy |
 

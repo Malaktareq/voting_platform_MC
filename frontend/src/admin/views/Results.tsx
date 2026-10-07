@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { ResultsSnapshot } from '../../lib/types';
-import { accent, fmtTime } from '../../lib/util';
+import { accent } from '../../lib/util';
+import { useLang } from '../i18n';
 import { LoadError, Modal, PageHead, Spinner, useAdmin, useLoad } from '../ui';
 import { useAction } from '../useAction';
 
 export default function Results() {
   const { isAdmin } = useAdmin();
+  const { t } = useLang();
+  const r = t.results;
   const { data: snap, error, reload } = useLoad(() => api<ResultsSnapshot>('/api/admin/results'));
   const [resetting, setResetting] = useState(false);
   useEffect(() => {
@@ -18,11 +21,10 @@ export default function Results() {
 
   return (
     <div>
-      <PageHead title="Results" sub={`${snap.totals.votes} votes from ${snap.totals.voters} verified visitors · updated ${fmtTime(snap.generated_at)}`}>
-        <a className="btn" href="/api/admin/export/results.csv">Export CSV</a>
-        <a className="btn" href="/api/admin/export/results.json">Export JSON</a>
-        <button className="btn" onClick={reload}>Refresh</button>
-        {isAdmin && <button className="btn btn-danger" onClick={() => setResetting(true)}>Reset results…</button>}
+      <PageHead title={r.title} sub={r.sub(snap.totals.votes.toLocaleString('en'), snap.totals.voters.toLocaleString('en'), t.when(snap.generated_at))}>
+        <a className="btn" href="/api/admin/export/results.csv">{r.csv}</a>
+        <a className="btn" href="/api/admin/export/results.json">{r.json}</a>
+        {isAdmin && <button className="btn btn-danger" onClick={() => setResetting(true)}>{r.reset}</button>}
       </PageHead>
       <div className="cat-grid">
         {snap.categories.map((c, i) => {
@@ -30,7 +32,7 @@ export default function Results() {
           return (
             <section key={c.id} className="card" style={accent(i)}>
               <div className="cat-bar" />
-              <div className="card-head"><h2>{c.name}</h2><span className="muted">{c.total} votes</span></div>
+              <div className="card-head"><h2>{c.name}</h2><span className="muted">{r.votes(c.total.toLocaleString('en'))}</span></div>
               <ol className="result-list">
                 {c.standings.map((s) => (
                   <li key={s.id} className={s.rank === 1 && s.votes ? 'lead' : ''}>
@@ -55,23 +57,23 @@ export default function Results() {
 
 function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { toast } = useAdmin();
+  const { t } = useLang();
+  const r = t.results;
   const [typed, setTyped] = useState('');
   const [purge, setPurge] = useState(false);
   const { busy, run } = useAction();
   return (
-    <Modal title="Reset results" busy={busy} onClose={onClose}>
+    <Modal title={r.resetTitle} busy={busy} onClose={onClose}>
       <div className="stack">
-        <p>This closes voting and permanently deletes every vote (e.g. after a rehearsal). Voting stays closed until you reopen it. A snapshot of the current counts is kept in the audit log. Export first if you need the data.</p>
-        <label className="check"><input type="checkbox" checked={purge} onChange={(e) => setPurge(e.target.checked)} /><span>Also delete all visitor registrations (names &amp; phone numbers)</span></label>
-        <input className="input" placeholder="Type RESET" value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <p>{r.resetBody}</p>
+        <label className="check"><input type="checkbox" checked={purge} onChange={(e) => setPurge(e.target.checked)} /><span>{r.purge}</span></label>
+        <input className="input" dir="ltr" placeholder={r.typeReset} value={typed} onChange={(e) => setTyped(e.target.value)} />
         <div className="actions">
-          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="btn" disabled={busy} onClick={onClose}>{t.common.cancel}</button>
           <button className="btn btn-danger" disabled={busy || typed !== 'RESET'} aria-busy={busy} onClick={() => run('reset', async () => {
-            try {
-              const r = await api<{ deleted: number }>('/api/admin/results/reset', { method: 'POST', body: { confirm: 'RESET', purgeVisitors: purge } });
-              toast(`Voting closed. Deleted ${r.deleted} votes.`); onDone();
-            } catch (ex) { toast((ex as Error).message, 'err'); }
-          })}>{busy ? 'Deleting…' : 'Delete all votes'}</button>
+            const res = await api<{ deleted: number }>('/api/admin/results/reset', { method: 'POST', body: { confirm: 'RESET', purgeVisitors: purge } });
+            toast(r.resetDone(res.deleted)); onDone();
+          })}>{busy ? t.common.deleting : r.deleteAll}</button>
         </div>
       </div>
     </Modal>

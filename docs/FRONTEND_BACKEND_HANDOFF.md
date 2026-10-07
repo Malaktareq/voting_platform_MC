@@ -174,9 +174,9 @@ All paths start `/api/admin`. GETs accept account roles; writes are admin only. 
 | PUT `/categories/:id` | Category JSON | 200 `{ category }` |
 | DELETE `/categories/:id?force=true` | None; force optional | `{ ok: true }` |
 
-Category rows include `id, slug, name, description, sort_order, is_active`. JSON fields: required `name` (nonblank, <=80); optional `slug` <=40, `description` <=300, integer `sort_order`, boolean `is_active`.
+Category rows include `id, slug, name, description, is_active` and are listed in creation order. JSON fields: required `name` (nonblank, <=80); optional `slug` <=40, `description` <=300, boolean `is_active`.
 
-**PUT is replacement-like, not a partial PATCH:** omitted slug is generated from name; omitted description becomes empty, sort_order becomes zero, active becomes true. Submit the complete edited form. Slugs are normalized to lowercase ASCII/hyphen form and unique; create/update duplicates return 409 `exists`. This is slug uniqueness, not an independent strict category-name uniqueness rule.
+**PUT is replacement-like, not a partial PATCH:** omitted slug is generated from name; omitted description becomes empty, active becomes true. Submit the complete edited form. Slugs are normalized to lowercase ASCII/hyphen form and unique; create/update duplicates return 409 `exists`. This is slug uniqueness, not an independent strict category-name uniqueness rule.
 
 Deletion rejects 409 `has_votes` if votes exist, or `category_in_use` if an active exhibitor would lose its only assignment. Deactivation can preserve records. `force=true` bypasses these deletion safeguards and can cascade-delete votes/assignments; require a clear destructive confirmation in UI. Backend permits dynamic category creation; event configuration should keep exactly three active MC2026 categories.
 

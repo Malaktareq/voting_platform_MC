@@ -28,7 +28,7 @@ export interface ResultsSnapshot {
 
 export type AdminRole = 'admin' | 'viewer';
 export interface AdminUser { id: number; username: string; role: AdminRole; totp_enabled: boolean }
-export interface AdminCategory extends Category { sort_order: number; is_active: boolean; exhibitor_count: number }
+export interface AdminCategory extends Category { is_active: boolean; exhibitor_count: number }
 export interface AdminExhibitor extends Exhibitor { is_active: boolean; votes: number; image_id: string | null }
 export interface Settings {
   event: { name: string; tagline: string; venue: string };

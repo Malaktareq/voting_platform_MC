@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { PasswordInput } from './PasswordInput';
+import { LangToggle, useLang } from './i18n';
 
 /** Username + password, then TOTP when the account has two-factor enabled. */
 export function Login({ onDone, initialMessage }: { onDone: (mfaSetupRecommended: boolean) => void; initialMessage?: string | null }) {
+  const { t, err: errText } = useLang();
   const [step, setStep] = useState<'password' | 'mfa'>('password');
   const [err, setErr] = useState<string | null>(initialMessage || null);
   const [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ export function Login({ onDone, initialMessage }: { onDone: (mfaSetupRecommended
   }, [remaining, cooldownError]);
 
   const showError = (error: ApiError, requestStep: 'password' | 'mfa') => {
-    setErr(error.message);
+    setErr(errText(error));
     const seconds = Number(error.body?.retryAfter);
     const accountLocked = error.code === 'locked' || error.body?.accountLocked === true;
     if ((!accountLocked && error.code !== 'rate_limited') || !Number.isFinite(seconds) || seconds <= 0) return;
@@ -63,26 +65,28 @@ export function Login({ onDone, initialMessage }: { onDone: (mfaSetupRecommended
 
   return (
     <div className="login">
+      <div className="login-lang"><LangToggle /></div>
       <div className="login-card">
-        <p className="login-title">Admin console</p>
-        <h1>{step === 'password' ? 'Sign in' : 'Two-factor check'}</h1>
+        <img className="login-logo" src="/mc-logo-lockup.png" alt={t.shell.logoAlt} />
+        <p className="login-title">{t.login.console}</p>
+        <h1>{step === 'password' ? t.login.signIn : t.login.twoFactor}</h1>
         {step === 'password' ? (
           <form className="stack" onSubmit={submitPassword}>
-            <label className="field"><span>Username</span>
-              <input className="input" name="username" autoComplete="username" required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-            <label className="field"><span>Password</span>
+            <label className="field"><span>{t.login.username}</span>
+              <input className="input" dir="ltr" name="username" autoComplete="username" required autoFocus value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+            <label className="field"><span>{t.login.password}</span>
               <PasswordInput name="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
             {err && <p className="alert">{err}</p>}
-            <button className="btn btn-primary btn-block" disabled={busy || remaining > 0} aria-busy={busy}>{busy ? 'Signing in…' : remaining > 0 ? `Retry in ${countdown}` : 'Sign in'}</button>
+            <button className="btn btn-primary btn-block" disabled={busy || remaining > 0} aria-busy={busy}>{busy ? t.login.signingIn : remaining > 0 ? t.login.retryIn(countdown) : t.login.signIn}</button>
           </form>
         ) : (
           <form className="stack" onSubmit={submitCode}>
-            <p className="muted">Enter the 6-digit code from your authenticator app.</p>
-            <label className="field"><span>Authenticator code</span>
-              <input className="input otp-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+            <p className="muted">{t.login.codeHelp}</p>
+            <label className="field"><span>{t.login.code}</span>
+              <input className="input otp-in" dir="ltr" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
             {err && <p className="alert">{err}</p>}
-            <button className="btn btn-primary btn-block" disabled={busy || remaining > 0} aria-busy={busy}>{busy ? 'Verifying…' : remaining > 0 ? `Retry in ${countdown}` : 'Verify'}</button>
-            <button type="button" className="btn btn-link" disabled={busy} onClick={() => { setStep('password'); setErr(null); }}>Back</button>
+            <button className="btn btn-primary btn-block" disabled={busy || remaining > 0} aria-busy={busy}>{busy ? t.login.verifying : remaining > 0 ? t.login.retryIn(countdown) : t.login.verify}</button>
+            <button type="button" className="btn btn-link" disabled={busy} onClick={() => { setStep('password'); setErr(null); }}>{t.login.back}</button>
           </form>
         )}
       </div>

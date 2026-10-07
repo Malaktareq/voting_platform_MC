@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { AdminUser } from '../lib/types';
+import { useLang } from './i18n';
 
 // ------------------------------------------------------------------ Modal
 export function Modal({ title, wide, busy = false, onClose, children }: { title: string; wide?: boolean; busy?: boolean; onClose: () => void; children: React.ReactNode }) {
+  const { t } = useLang();
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
@@ -14,7 +16,7 @@ export function Modal({ title, wide, busy = false, onClose, children }: { title:
     <div className="modal">
       <div className="modal-bg" onClick={() => { if (!busy) onClose(); }} />
       <div className={`modal-card${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" ref={cardRef}>
-        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" aria-label="Close" disabled={busy} onClick={onClose}>×</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" aria-label={t.common.close} disabled={busy} onClick={onClose}>×</button></div>
         {children}
       </div>
     </div>
@@ -38,6 +40,7 @@ export function AdminProvider({ me, setMe, children }: { me: AdminUser; setMe: (
   const [toastState, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
   const [dialog, setDialog] = useState<{ message: string; opts: ConfirmOpts; resolve: (v: boolean) => void } | null>(null);
   const [typed, setTyped] = useState('');
+  const { t } = useLang();
 
   useEffect(() => {
     if (!toastState) return;
@@ -54,15 +57,15 @@ export function AdminProvider({ me, setMe, children }: { me: AdminUser; setMe: (
     <Ctx.Provider value={{ me, isAdmin: me.role === 'admin', setMe, toast, confirm }}>
       {children}
       {dialog && (
-        <Modal title="Are you sure?" onClose={() => close(false)}>
+        <Modal title={t.common.areYouSure} onClose={() => close(false)}>
           <div className="stack">
             <p>{dialog.message}</p>
-            {dialog.opts.typeToConfirm && <input className="input" placeholder={`Type ${dialog.opts.typeToConfirm}`} value={typed} onChange={(e) => setTyped(e.target.value)} />}
+            {dialog.opts.typeToConfirm && <input className="input" placeholder={t.common.typeToConfirm(dialog.opts.typeToConfirm)} value={typed} onChange={(e) => setTyped(e.target.value)} />}
             <div className="actions">
-              <button className="btn" onClick={() => close(false)}>Cancel</button>
+              <button className="btn" onClick={() => close(false)}>{t.common.cancel}</button>
               <button className={`btn ${dialog.opts.danger ? 'btn-danger' : 'btn-primary'}`}
                 disabled={!!dialog.opts.typeToConfirm && typed !== dialog.opts.typeToConfirm} onClick={() => close(true)}>
-                {dialog.opts.confirmText || 'Confirm'}
+                {dialog.opts.confirmText || t.common.confirm}
               </button>
             </div>
           </div>
@@ -92,6 +95,7 @@ export function Spinner() { return <div className="boot"><span className="spinne
 /** Load data for a view; exposes reload + error. */
 export function useLoad<T>(fn: () => Promise<T>, deps: React.DependencyList = []) {
   const ctx = useContext(Ctx);
+  const { err } = useLang();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,7 +103,7 @@ export function useLoad<T>(fn: () => Promise<T>, deps: React.DependencyList = []
     setLoading(true);
     try { setData(await fn()); setError(null); } catch (e) {
       if ((e as { code?: string }).code === 'unauthorized' && ctx) { ctx.setMe(null); return; }
-      setError((e as Error).message);
+      setError(err(e));
     } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
