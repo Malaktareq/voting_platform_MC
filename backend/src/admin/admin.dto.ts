@@ -19,7 +19,6 @@ export class CategoryDto {
   @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(80) name: string;
   @IsOptional() @IsString() @MaxLength(40) slug?: string;
   @IsOptional() @IsString() @MaxLength(300) description?: string;
-  @ValidateIf((_, value) => value !== undefined) @IsInt() @Min(0) @Max(2147483647) sort_order?: number;
   @IsOptional() @IsBoolean() is_active?: boolean;
 }
 

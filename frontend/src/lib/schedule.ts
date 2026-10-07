@@ -14,7 +14,7 @@ export function scheduleInput(value: string | null | undefined): string {
 /** Interpret wall-clock input in Amman, independently of the browser timezone. */
 export function scheduleTimestamp(value: string): string | null {
   if (!value) return null;
-  const invalid = () => new Error('Please enter a valid schedule date and time.');
+  const invalid = () => Object.assign(new Error('Please enter a valid schedule date and time.'), { code: 'bad_date' });
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw invalid();
   const wall = new Date(`${value}:00.000Z`);
   if (!Number.isFinite(wall.getTime()) || wall.toISOString().slice(0, 16) !== value) throw invalid();
@@ -31,7 +31,7 @@ export function scheduleTimestamp(value: string): string | null {
 export function scheduleWindow(opensAt: string, closesAt: string) {
   const opens_at = scheduleTimestamp(opensAt), closes_at = scheduleTimestamp(closesAt);
   if (opens_at && closes_at && Date.parse(closes_at) <= Date.parse(opens_at)) {
-    throw new Error('Voting end must be after voting start.');
+    throw Object.assign(new Error('Voting end must be after voting start.'), { code: 'bad_voting_window' });
   }
   return { opens_at, closes_at };
 }

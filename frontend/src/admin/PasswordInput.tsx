@@ -1,11 +1,13 @@
 import { useId, useState } from 'react';
 import type { InputHTMLAttributes } from 'react';
+import { useLang } from './i18n';
 
 export function PasswordInput({ id, className = 'input', ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const [visible, setVisible] = useState(false);
-  const action = visible ? 'Hide password' : 'Show password';
+  const { t } = useLang();
+  const action = visible ? t.login.hidePassword : t.login.showPassword;
 
   return (
     <div className="password-field">

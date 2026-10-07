@@ -56,11 +56,12 @@ export async function api<T = any>(path: string, { method = 'GET', body, form, r
       clearTimeout(t);
       if (e instanceof ApiError) throw e;
       if (attempt >= retries) {
+        const offline = navigator.onLine === false;
         throw new ApiError(0, {
-          error: 'network',
+          error: method !== 'GET' ? 'network_unconfirmed' : offline ? 'offline' : 'network',
           message: method !== 'GET'
             ? 'Could not confirm whether the action completed. Refresh to check its status before trying again.'
-            : navigator.onLine === false ? 'You appear to be offline. Check your connection and try again.' : 'Connection problem. Please try again.',
+            : offline ? 'You appear to be offline. Check your connection and try again.' : 'Connection problem. Please try again.',
         });
       }
       attempt += 1;

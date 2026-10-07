@@ -56,7 +56,7 @@ export class VisitorService {
     const cached = await this.bus.cacheGet<any>('ballot');
     if (cached) return cached;
     const [categories, ex] = await Promise.all([
-      this.ds.query('SELECT id, slug, name, description FROM categories WHERE is_active ORDER BY sort_order, id'),
+      this.ds.query('SELECT id, slug, name, description FROM categories WHERE is_active ORDER BY id'),
       this.ds.query(`SELECT e.id, e.name, e.project, e.description, e.booth, e.image_id,
                             COALESCE(array_agg(ec.category_id ORDER BY ec.category_id) FILTER (WHERE ec.category_id IS NOT NULL), '{}') AS category_ids
                        FROM exhibitors e LEFT JOIN exhibitor_categories ec ON ec.exhibitor_id = e.id
