@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, Min, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, Min, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 
 export class LocationDto {
   @IsNumber() @Min(-90) @Max(90) lat: number;
@@ -12,7 +12,7 @@ export class AccessCheckDto {
 }
 
 export class RequestOtpDto {
-  @IsString() @MaxLength(200) name: string;
+  @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(80) name: string;
   @IsString() @MaxLength(40) phone: string;
   @IsOptional() @IsBoolean() consent?: boolean;
   @IsOptional() @ValidateNested() @Type(() => LocationDto) location?: LocationDto;
@@ -20,7 +20,7 @@ export class RequestOtpDto {
 
 export class VerifyOtpDto {
   @IsUUID() challengeId: string;
-  @IsString() @MaxLength(20) code: string;
+  @IsString() @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' }) code: string;
 }
 
 export class VoteQrEntryDto {
@@ -28,7 +28,7 @@ export class VoteQrEntryDto {
 }
 
 export class CastVoteDto {
-  @IsInt() categoryId: number;
-  @IsInt() exhibitorId: number;
+  @IsInt() @Min(1) @Max(2147483647) categoryId: number;
+  @IsInt() @Min(1) @Max(2147483647) exhibitorId: number;
   @IsOptional() @ValidateNested() @Type(() => LocationDto) location?: LocationDto;
 }

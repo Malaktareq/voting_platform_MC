@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
+import { connectResults, type LiveStatus } from '../lib/live-results';
 import type { CategoryResult, ResultsSnapshot } from '../lib/types';
 import { useBodyClass } from '../lib/util';
 import '../styles/display.css';
@@ -50,57 +51,78 @@ export default function DisplayPage() {
   const [qr, setQr] = useState<{ url: string; qr: string } | null>(null);
   const [lastUpdate, setLastUpdate] = useState(0);
   const [, tick] = useState(0);
+  const [connection, setConnection] = useState<LiveStatus>('connecting');
+  const newest = useRef(-Infinity);
+  const bootGeneration = useRef(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const receive = useCallback((s: ResultsSnapshot) => {
+    const timestamp = Date.parse(s.generated_at);
+    if (!Number.isFinite(timestamp) || timestamp < newest.current) return;
+    newest.current = timestamp;
     setSnap((old) => { setPrev(old); return s; });
     setLastUpdate(Date.now());
   }, []);
 
   const boot = useCallback(async () => {
+    const generation = ++bootGeneration.current;
     const key = new URLSearchParams(window.location.search).get('key');
     if (key) {
       try { await api('/api/display/auth', { method: 'POST', body: { key } }); }
-      catch (e) { setLockMsg((e as Error).message); setPhase('locked'); return; }
+      catch (e) { if (generation === bootGeneration.current) { setLockMsg((e as Error).message); setPhase((e as ApiError).status === 401 ? 'locked' : 'error'); setRetryAttempt(n => n + 1); } return; }
+      if (generation !== bootGeneration.current) return;
       window.history.replaceState(null, '', '/display'); // don't leave the key on screen
     }
     try {
-      receive(await api<ResultsSnapshot>('/api/display/results'));
+      const snapshot = await api<ResultsSnapshot>('/api/display/results');
+      if (generation !== bootGeneration.current) return;
+      receive(snapshot);
       setPhase('live');
-      api<{ url: string; qr: string }>('/api/display/qr').then(setQr).catch(() => undefined);
     } catch (e) {
+      if (generation !== bootGeneration.current) return;
       if ((e as ApiError).status === 401) { setPhase('locked'); return; }
       setPhase('error');
-      setTimeout(boot, 5000);
+      setRetryAttempt(n => n + 1);
     }
   }, [receive]);
 
-  useEffect(() => { boot(); }, [boot]);
+  useEffect(() => {
+    if (phase !== 'loading' && phase !== 'error') return;
+    const timer = setTimeout(() => { void boot(); }, phase === 'error' ? 5000 : 0);
+    return () => { clearTimeout(timer); bootGeneration.current++; };
+  }, [boot, phase, retryAttempt]);
+
+  useEffect(() => {
+    if (phase !== 'live' || qr) return;
+    let disposed = false, pending = false;
+    const load = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const result = await api<{ url: string; qr: string }>('/api/display/qr');
+        if (!disposed) setQr(result);
+      } catch { /* Retry temporary QR loading failures without interrupting standings. */ }
+      finally { pending = false; }
+    };
+    void load();
+    const timer = setInterval(load, 5000);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [phase, qr]);
 
   // Live channel
   useEffect(() => {
     if (phase !== 'live') return;
-    let failures = 0;
-    let poll: ReturnType<typeof setInterval> | null = null;
-    const stopPolling = () => { if (poll) clearInterval(poll); poll = null; };
-    const es = new EventSource('/api/display/stream');
-    es.addEventListener('results', (ev) => {
-      failures = 0; stopPolling();
-      try { receive(JSON.parse((ev as MessageEvent).data)); } catch { /* ignore */ }
+    const disconnect = connectResults<ResultsSnapshot>({
+      url: '/api/display/stream', load: () => api<ResultsSnapshot>('/api/display/results'),
+      onSnapshot: receive, onStatus: setConnection,
+      onUnauthorized: () => { setLockMsg('Display access expired or the key was rotated. Open a current display link.'); setPhase('locked'); },
     });
-    es.onerror = () => {
-      failures += 1;
-      if (failures >= 3 && !poll) {
-        poll = setInterval(async () => {
-          try { receive(await api<ResultsSnapshot>('/api/display/results')); }
-          catch (e) { if ((e as ApiError).status === 401) { es.close(); stopPolling(); setLockMsg('Display key was rotated.'); setPhase('locked'); } }
-        }, 5000);
-      }
-    };
     const staleTimer = setInterval(() => tick((n) => n + 1), 5000);
-    return () => { es.close(); stopPolling(); clearInterval(staleTimer); };
+    return () => { disconnect(); clearInterval(staleTimer); };
   }, [phase, receive]);
 
-  if (phase === 'locked') return <KeyForm message={lockMsg} onUnlock={() => { setLockMsg(null); setPhase('loading'); boot(); }} onError={setLockMsg} />;
+  if (phase === 'locked') return <KeyForm message={lockMsg} onUnlock={() => { newest.current = -Infinity; setLockMsg(null); setPhase('loading'); }} onError={setLockMsg} />;
+  if (phase === 'error') return <div className="center"><div><p role="alert">{lockMsg || 'Cannot connect to live results. Retrying…'}</p><button onClick={() => setPhase('loading')}>Retry now</button></div></div>;
   if (!snap) return <div className="center"><span className="spinner" /></div>;
 
   const finalMode = !snap.voting.open && snap.totals.votes > 0;
@@ -126,9 +148,9 @@ export default function DisplayPage() {
           <p className="dek">See the most voted makers in each category</p>
         </div>
         <div className="hdr-status">
-          <Stat label="Votes" value={snap.totals.votes} prev={prev?.totals.votes} />
+          {snap.show_counts && <Stat label="Votes" value={snap.totals.votes} prev={prev?.totals.votes} />}
           {finalMode ? <span className="pill final">Final</span>
-            : snap.voting.open ? <span className={`pill live${stale ? ' stale' : ''}`}><i />Live</span>
+            : snap.voting.open ? <span className={`pill live${stale || connection !== 'live' ? ' stale' : ''}`}><i />{connection === 'live' && !stale ? 'Live' : connection === 'polling' && !stale ? 'Updating' : 'Disconnected'}</span>
             : <span className="pill closed">Closed</span>}
         </div>
       </header>
@@ -140,6 +162,7 @@ export default function DisplayPage() {
       </main>
 
       <footer className="ftr">
+        {(stale || connection !== 'live') && <p className="note" role="status">{stale || connection === 'offline' ? 'Connection lost. Showing the last received results.' : 'Updating results by polling.'}</p>}
         <div className="cta">
           <div className="cta-copy">
             <span>Be part of The Maker Collective 2026</span>
@@ -151,7 +174,7 @@ export default function DisplayPage() {
               <img src={qr.qr} alt="QR code to vote" />
             </div>
           ) : (
-            <p className="note">{finalMode ? 'Voting has ended' : 'Voting is not open yet'}</p>
+            <p className="note">{snap.voting.open ? 'Voting QR is temporarily unavailable. Retrying…' : finalMode ? 'Voting has ended' : 'Voting is closed'}</p>
           )}
         </div>
       </footer>
@@ -231,19 +254,24 @@ function Column({ c, index, finalMode, showCounts, prev }: { c: CategoryResult; 
 
 function KeyForm({ message, onUnlock, onError }: { message: string | null; onUnlock: () => void; onError: (m: string) => void }) {
   const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   return (
     <div className="center">
       <form className="keyform" onSubmit={async (e) => {
         e.preventDefault();
+        if (submitting.current || !key.trim()) return;
+        submitting.current = true; setBusy(true);
         try { await api('/api/display/auth', { method: 'POST', body: { key: key.trim() } }); onUnlock(); }
         catch (err) { onError((err as Error).message); }
+        finally { submitting.current = false; setBusy(false); }
       }}>
         <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
         <h1>Live results</h1>
         <p>This screen is protected. Open the display link from the admin console, or enter the display key.</p>
         {message && <p className="err">{message}</p>}
-        <input type="password" placeholder="Display key" autoComplete="off" autoFocus value={key} onChange={(e) => setKey(e.target.value)} />
-        <button type="submit">Unlock</button>
+        <input type="password" placeholder="Display key" autoComplete="off" autoFocus required disabled={busy} value={key} onChange={(e) => setKey(e.target.value)} />
+        <button type="submit" disabled={busy} aria-busy={busy}>{busy ? 'Unlocking…' : 'Unlock'}</button>
       </form>
     </div>
   );

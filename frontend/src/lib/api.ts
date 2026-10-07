@@ -13,6 +13,12 @@ export class ApiError extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const adminSessionExpiredListeners = new Set<() => void>();
+export function onAdminSessionExpired(listener: () => void): () => void {
+  adminSessionExpiredListeners.add(listener);
+  return () => { adminSessionExpiredListeners.delete(listener); };
+}
+
 export interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
@@ -22,11 +28,11 @@ export interface ApiOptions {
   timeout?: number;
 }
 
-export async function api<T = any>(path: string, { method = 'GET', body, form, retries = 0, timeout = 10000 }: ApiOptions = {}): Promise<T> {
+export async function api<T = any>(path: string, { method = 'GET', body, form, retries = 0, timeout }: ApiOptions = {}): Promise<T> {
   let attempt = 0;
   for (;;) {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeout);
+    const t = setTimeout(() => ctrl.abort(), timeout ?? (method === 'GET' ? 10000 : 30000));
     try {
       const headers: Record<string, string> = { 'x-requested-with': 'mc2026' };
       if (body !== undefined && !form) headers['content-type'] = 'application/json';
@@ -39,7 +45,11 @@ export async function api<T = any>(path: string, { method = 'GET', body, form, r
       const data = ct.includes('json') ? await res.json() : await res.text();
       if (!res.ok) {
         if (res.status >= 500 && attempt < retries) throw Object.assign(new Error('retry'), { retryable: true });
-        throw new ApiError(res.status, typeof data === 'object' ? data : null);
+        const error = new ApiError(res.status, typeof data === 'object' ? data : null);
+        if (path.startsWith('/api/admin/') && error.status === 401 && error.code === 'unauthorized') {
+          adminSessionExpiredListeners.forEach((listener) => listener());
+        }
+        throw error;
       }
       return data as T;
     } catch (e) {
@@ -48,7 +58,9 @@ export async function api<T = any>(path: string, { method = 'GET', body, form, r
       if (attempt >= retries) {
         throw new ApiError(0, {
           error: 'network',
-          message: navigator.onLine === false ? 'You appear to be offline. Check your connection and try again.' : 'Connection problem. Please try again.',
+          message: method !== 'GET'
+            ? 'Could not confirm whether the action completed. Refresh to check its status before trying again.'
+            : navigator.onLine === false ? 'You appear to be offline. Check your connection and try again.' : 'Connection problem. Please try again.',
         });
       }
       attempt += 1;

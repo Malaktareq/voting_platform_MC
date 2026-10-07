@@ -24,6 +24,14 @@ export class CatalogService {
     await this.bus.publish('results-changed', {});
   }
 
+  private transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    return this.ds.transaction(async manager => {
+      // Same lock order as reset and voting: checks and cascades cannot race a new vote.
+      await manager.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');
+      return work(manager);
+    });
+  }
+
   // ------------------------------------------------------------------ categories
   listCategories() {
     return this.ds.query(`
@@ -35,19 +43,25 @@ export class CatalogService {
   private categoryInput(b: CategoryDto) {
     const name = String(b.name || '').trim();
     if (!name || name.length > 80) throw new AppError(400, 'bad_name', 'Category name is required (max 80 chars).');
+    if (b.sort_order !== undefined && (!Number.isInteger(b.sort_order) || b.sort_order! < 0 || b.sort_order! > 2147483647)) {
+      throw new AppError(400, 'bad_order', 'Display order must be a whole number between 0 and 2147483647.');
+    }
     const slug = String(b.slug || name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `cat-${Date.now()}`;
-    return { name, slug, description: String(b.description || '').trim(), sort_order: Number.isInteger(b.sort_order) ? b.sort_order! : 0, is_active: b.is_active !== false };
+    return { name, slug, description: String(b.description || '').trim(), sort_order: b.sort_order === undefined ? 0 : b.sort_order, is_active: b.is_active !== false };
   }
 
   async createCategory(actor: string, ip: string, b: CategoryDto) {
     const c = this.categoryInput(b);
     try {
-      const rows = await this.ds.query(
-        'INSERT INTO categories (slug, name, description, sort_order, is_active) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-        [c.slug, c.name, c.description, c.sort_order, c.is_active]);
-      await this.audit.record(actor, 'category_created', { id: rows[0].id, name: c.name }, ip);
+      const category = await this.transaction(async m => {
+        const rows = await m.query(
+          'INSERT INTO categories (slug, name, description, sort_order, is_active) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+          [c.slug, c.name, c.description, c.sort_order, c.is_active]);
+        await this.audit.record(actor, 'category_created', { id: rows[0].id, name: c.name }, ip, m);
+        return rows[0];
+      });
       await this.changed();
-      return { category: rows[0] };
+      return { category };
     } catch (e: any) {
       if (e.code === '23505') throw new AppError(409, 'exists', 'A category with that name already exists.');
       throw e;
@@ -56,31 +70,36 @@ export class CatalogService {
 
   async updateCategory(actor: string, ip: string, id: number, b: CategoryDto) {
     const c = this.categoryInput(b);
-    const result = await this.ds.query(
-      'UPDATE categories SET slug=$2, name=$3, description=$4, sort_order=$5, is_active=$6 WHERE id=$1 RETURNING *',
-      [id, c.slug, c.name, c.description, c.sort_order, c.is_active]).catch((e) => {
-        if (e.code === '23505') throw new AppError(409, 'exists', 'A category with that name already exists.');
-        throw e;
-      });
-    const rows = result[0]; // PostgreSQL UPDATE returns [returned rows, affected count].
-    if (!rows[0]) throw new AppError(404, 'not_found', 'Category not found.');
-    await this.audit.record(actor, 'category_updated', { id }, ip);
+    const category = await this.transaction(async m => {
+      const result = await m.query(
+        'UPDATE categories SET slug=$2, name=$3, description=$4, sort_order=$5, is_active=$6 WHERE id=$1 RETURNING *',
+        [id, c.slug, c.name, c.description, c.sort_order, c.is_active]).catch((e) => {
+          if (e.code === '23505') throw new AppError(409, 'exists', 'A category with that name already exists.');
+          throw e;
+        });
+      const rows = result[0]; // PostgreSQL UPDATE returns [returned rows, affected count].
+      if (!rows[0]) throw new AppError(404, 'not_found', 'Category not found.');
+      await this.audit.record(actor, 'category_updated', { id }, ip, m);
+      return rows[0];
+    });
     await this.changed();
-    return { category: rows[0] };
+    return { category };
   }
 
   async deleteCategory(actor: string, ip: string, id: number, force: boolean) {
-    const n = (await this.ds.query('SELECT COUNT(*)::int AS n FROM votes WHERE category_id = $1', [id]))[0].n;
-    if (n > 0 && !force) throw new AppError(409, 'has_votes', `This category already has ${n} votes. Deactivate it instead, or reset results first.`);
-    if (!force) {
-      const stranded = await this.ds.query(`SELECT e.id FROM exhibitors e
+    await this.transaction(async m => {
+      const n = (await m.query('SELECT COUNT(*)::int AS n FROM votes WHERE category_id = $1', [id]))[0].n;
+      if (n > 0 && !force) throw new AppError(409, 'has_votes', `This category already has ${n} votes. Deactivate it instead, or reset results first.`);
+      if (!force) {
+        const stranded = await m.query(`SELECT e.id FROM exhibitors e
         JOIN exhibitor_categories ec ON ec.exhibitor_id = e.id
         WHERE e.is_active AND ec.category_id = $1 AND NOT EXISTS
           (SELECT 1 FROM exhibitor_categories other WHERE other.exhibitor_id = e.id AND other.category_id <> $1)`, [id]);
-      if (stranded.length) throw new AppError(409, 'category_in_use', 'This is the only category for an active exhibitor. Reassign or hide the exhibitor first.');
-    }
-    await this.ds.query('DELETE FROM categories WHERE id = $1', [id]);
-    await this.audit.record(actor, 'category_deleted', { id }, ip);
+        if (stranded.length) throw new AppError(409, 'category_in_use', 'This is the only category for an active exhibitor. Reassign or hide the exhibitor first.');
+      }
+      await m.query('DELETE FROM categories WHERE id = $1', [id]);
+      await this.audit.record(actor, 'category_deleted', { id, discarded_votes: n }, ip, m);
+    });
     await this.changed();
     return { ok: true };
   }
@@ -153,23 +172,23 @@ export class CatalogService {
 
   async createExhibitor(actor: string, ip: string, b: ExhibitorFormDto, file?: UploadedImage) {
     const e = this.exhibitorInput(b);
-    const row = await this.ds.transaction(async (m) => {
+    const row = await this.transaction(async (m) => {
       const imageId = await this.saveImage(m, file);
       if (e.is_active && !imageId) throw new AppError(400, 'photo_required', 'Active exhibitors need a photo.');
       const rows = await m.query(
         'INSERT INTO exhibitors (name, project, description, booth, image_id, is_active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
         [e.name, e.project, e.description, e.booth, imageId, e.is_active]);
       await this.setCategories(m, rows[0].id, e.categoryIds, false);
+      await this.audit.record(actor, 'exhibitor_created', { id: rows[0].id, name: e.name }, ip, m);
       return rows[0];
     }).catch((error) => this.exhibitorConflict(error));
-    await this.audit.record(actor, 'exhibitor_created', { id: row.id, name: e.name }, ip);
     await this.changed();
     return { exhibitor: row };
   }
 
   async updateExhibitor(actor: string, ip: string, id: number, b: ExhibitorFormDto, file: UploadedImage | undefined, force: boolean) {
     const e = this.exhibitorInput(b);
-    const row = await this.ds.transaction(async (m) => {
+    const row = await this.transaction(async (m) => {
       const imageId = await this.saveImage(m, file);
       const result = await m.query(
         `UPDATE exhibitors SET name=$2, project=$3, description=$4, booth=$5, is_active=$6, updated_at=now(),
@@ -181,9 +200,9 @@ export class CatalogService {
       if (e.is_active && !rows[0].image_id) throw new AppError(400, 'photo_required', 'Active exhibitors need a photo.');
       await this.setCategories(m, id, e.categoryIds, force);
       await m.query('DELETE FROM images i WHERE NOT EXISTS (SELECT 1 FROM exhibitors x WHERE x.image_id = i.id)');
+      await this.audit.record(actor, 'exhibitor_updated', { id }, ip, m);
       return rows[0];
     }).catch((error) => this.exhibitorConflict(error));
-    await this.audit.record(actor, 'exhibitor_updated', { id }, ip);
     await this.changed();
     return { exhibitor: row };
   }
@@ -196,15 +215,15 @@ export class CatalogService {
   }
 
   async deleteExhibitor(actor: string, ip: string, id: number, force: boolean) {
-    const n = (await this.ds.query('SELECT COUNT(*)::int AS n FROM votes WHERE exhibitor_id = $1', [id]))[0].n;
-    if (n > 0 && !force) {
-      throw new AppError(409, 'has_votes', `This exhibitor already has ${n} votes. Hide it instead (untick "Visible"), or delete anyway to discard those votes.`);
-    }
-    await this.ds.transaction(async (m) => {
+    await this.transaction(async m => {
+      const n = (await m.query('SELECT COUNT(*)::int AS n FROM votes WHERE exhibitor_id = $1', [id]))[0].n;
+      if (n > 0 && !force) {
+        throw new AppError(409, 'has_votes', `This exhibitor already has ${n} votes. Hide it instead (untick "Visible"), or delete anyway to discard those votes.`);
+      }
       await m.query('DELETE FROM exhibitors WHERE id = $1', [id]);
       await m.query('DELETE FROM images i WHERE NOT EXISTS (SELECT 1 FROM exhibitors x WHERE x.image_id = i.id)');
+      await this.audit.record(actor, 'exhibitor_deleted', { id, discarded_votes: n }, ip, m);
     });
-    await this.audit.record(actor, 'exhibitor_deleted', { id, discarded_votes: n }, ip);
     await this.changed();
     return { ok: true };
   }
