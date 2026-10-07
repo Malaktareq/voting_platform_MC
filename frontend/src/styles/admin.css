@@ -410,3 +410,29 @@ body.admin .toast.warn { background: var(--yellow); color: var(--navy); }
   body.admin .side .logo img { width: 160px; }
   body.admin .nav-item.active { box-shadow: inset 0 -3px 0 var(--yellow); }
 }
+
+body.admin .password-field { position: relative; min-width: 0; width: 100%; }
+body.admin .password-field .input { padding-inline-end: 48px; }
+body.admin .password-toggle {
+  position: absolute; inset-inline-end: 3px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 40px; height: 36px;
+  border: 0; border-radius: 6px; padding: 0; background: transparent;
+  color: var(--ink-3); cursor: pointer;
+}
+body.admin .password-toggle:hover { background: var(--paper); color: var(--ink); }
+body.admin .password-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+body.admin .password-toggle:disabled { opacity: .5; cursor: default; }
+body.admin .password-field input::-ms-reveal { display: none; }
+
+body.admin .login-card .login-title {
+  margin: 0; text-align: center; font-family: var(--font-display);
+  font-size: 26px; font-weight: 700; letter-spacing: -.02em; color: var(--navy);
+}
+body.admin .login-card h1 { margin: 14px 0 22px; font-size: 20px; text-align: center; color: var(--ink-2); }
+
+body.admin .audit-details { min-width: 140px; max-width: 480px; }
+body.admin .audit-details summary { cursor: pointer; color: var(--navy); }
+body.admin .audit-details pre {
+  margin: 10px 0 0; padding: 12px; background: var(--paper); border-radius: 6px;
+  white-space: pre-wrap; overflow-wrap: anywhere; font: inherit;
+}

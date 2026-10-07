@@ -60,6 +60,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
   const phoneRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -69,10 +70,12 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
     if (!(e.currentTarget as HTMLFormElement).reportValidity()) return;
     const f = { ...form, name: form.name.trim(), phone: form.phone.trim() };
     if (f.name.length < 2) { nameRef.current?.focus(); setErr(`${t('name')} ✱`); return; }
     if (!f.phone) { phoneRef.current?.focus(); setErr(`${t('phone')} ✱`); return; }
+    submitting.current = true;
     setBusy(true); setErr(null);
     try {
       const r = await api<OtpResponse>('/api/public/otp/request', { method: 'POST', body: { ...f, location: location ?? undefined } });
@@ -83,6 +86,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
       if (e2.code === 'voting_closed') { await reload(); return; }
       setErr(e2.message);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -155,16 +159,18 @@ export function OtpScreen({ challenge, setChallenge, form }: {
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
 
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { inputRef.current?.focus(); }, [challenge.id]);
   const resendIn = Math.max(0, Math.ceil((challenge.resendAt - now) / 1000));
 
   const verify = async (value: string) => {
-    if (value.length !== 6 || busy) return;
+    if (value.length !== 6 || submitting.current) return;
+    submitting.current = true;
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ session: VisitorSession }>('/api/public/otp/verify', { method: 'POST', body: { challengeId: challenge.id, code: value }, retries: 2 });
+      const r = await api<{ session: VisitorSession }>('/api/public/otp/verify', { method: 'POST', body: { challengeId: challenge.id, code: value } });
       setChallenge(null);
       setSession(r.session);
       window.scrollTo({ top: 0 });
@@ -174,6 +180,7 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       if (['otp_expired', 'otp_locked', 'otp_invalid'].includes(e2.code || '')) setCode('');
       inputRef.current?.select();
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -185,6 +192,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
   };
 
   const resend = async () => {
+    if (submitting.current || resendIn > 0) return;
+    submitting.current = true; setBusy(true);
     setErr(null);
     try {
       const r = await api<OtpResponse>('/api/public/otp/request', { method: 'POST', body: { ...form, location: location ?? undefined } });
@@ -192,6 +201,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       setCode('');
     } catch (ex) {
       setErr((ex as Error).message);
+    } finally {
+      submitting.current = false; setBusy(false);
     }
   };
 
@@ -208,8 +219,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
         <button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? t('verifying') : t('verify')}</button>
       </form>
       <div className="row-between">
-        <button className="btn btn-link" type="button" onClick={() => setChallenge(null)}>{t('changeNumber')}</button>
-        <button className="btn btn-ghost" type="button" disabled={resendIn > 0} onClick={resend}>
+        <button className="btn btn-link" type="button" disabled={busy} onClick={() => setChallenge(null)}>{t('changeNumber')}</button>
+        <button className="btn btn-ghost" type="button" disabled={busy || resendIn > 0} onClick={resend}>
           {resendIn > 0 ? t('resendIn', resendIn) : t('resend')}
         </button>
       </div>

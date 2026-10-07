@@ -54,17 +54,18 @@ export async function main() {
       const val = k === 'display' ? { ...v, key: crypto.randomBytes(18).toString('base64url') } : v;
       await ds.query('INSERT INTO settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, val]);
     }
-    const existing = (await ds.query(`SELECT
+    const imgDir = path.join(__dirname, '..', '..', 'seed', 'images');
+    const seeded = await ds.transaction(async (m) => {
+      await m.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');
+      const existing = (await m.query(`SELECT
       (SELECT COUNT(*)::int FROM categories) AS categories,
       (SELECT COUNT(*)::int FROM exhibitors) AS exhibitors,
       (SELECT COUNT(*)::int FROM votes) AS votes`))[0];
-    if (!force && (existing.categories > 0 || existing.exhibitors > 0 || existing.votes > 0)) {
-      console.log(`Existing data (${existing.categories} categories, ${existing.exhibitors} exhibitors, ${existing.votes} votes) — skipping seed. Configure the event's three active categories through admin; do not reseed existing data.`);
-      return;
-    }
+      if (!force && (existing.categories > 0 || existing.exhibitors > 0 || existing.votes > 0)) {
+        console.log(`Existing data (${existing.categories} categories, ${existing.exhibitors} exhibitors, ${existing.votes} votes) — skipping seed. Configure the event's three active categories through admin; do not reseed existing data.`);
+        return false;
+      }
 
-    const imgDir = path.join(__dirname, '..', '..', 'seed', 'images');
-    await ds.transaction(async (m) => {
       if (force) {
         for (const t of ['votes', 'exhibitors', 'categories', 'images']) await m.query(`DELETE FROM ${t}`);
       }
@@ -89,8 +90,9 @@ export async function main() {
           [name, project, description, booth, imageId]);
         for (const slug of cats) await m.query('INSERT INTO exhibitor_categories VALUES ($1,$2)', [ex[0].id, catIds[slug]]);
       }
+      return true;
     });
-    console.log(`Seeded ${CATEGORIES.length} categories and ${EXHIBITORS.length} exhibitors.`);
+    if (seeded) console.log(`Seeded ${CATEGORIES.length} categories and ${EXHIBITORS.length} exhibitors.`);
   } finally {
     await ds.destroy();
   }

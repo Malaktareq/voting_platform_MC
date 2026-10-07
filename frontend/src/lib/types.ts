@@ -33,6 +33,6 @@ export interface AdminExhibitor extends Exhibitor { is_active: boolean; votes: n
 export interface Settings {
   event: { name: string; tagline: string; venue: string };
   voting: { open: boolean; opens_at: string | null; closes_at: string | null };
-  access: { mode: string; allowed_cidrs: string[]; geofence: { lat: number; lng: number; radius_m: number; max_accuracy_m: number } };
+  access: { mode: string; allowed_cidrs: string[]; geofence: { lat: number | null; lng: number | null; radius_m: number | null; max_accuracy_m: number | null } };
   display: { key: string | null; show_counts: boolean };
 }

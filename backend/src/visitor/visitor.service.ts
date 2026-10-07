@@ -10,6 +10,7 @@ import { AccessService } from '../core/access.service';
 import { RateLimitService } from '../core/rate-limit.service';
 import { BusService } from '../redis/bus.service';
 import { SettingsService } from '../settings/settings.service';
+import { AllSettings } from '../settings/settings.types';
 import { SmsService } from '../sms/sms.service';
 import { LocationDto } from './visitor.dto';
 
@@ -38,8 +39,8 @@ export class VisitorService {
   }
 
   /** Voting open + visitor on site, or throw a friendly error the UI understands. */
-  async assertCanVote(ip: string, location: GeoPoint | null) {
-    const s = await this.settings.getAll();
+  async assertCanVote(ip: string, location: GeoPoint | null, state?: AllSettings) {
+    const s = state || await this.settings.getAll();
     const vs = this.settings.votingState(s);
     if (!vs.open) {
       throw new AppError(403, 'voting_closed', vs.reason === 'not_started' ? 'Voting has not opened yet.' : 'Voting is closed right now.', { voting: vs });
@@ -73,16 +74,16 @@ export class VisitorService {
   }
 
   async session(visitorId: string): Promise<VisitorSession | null> {
-    const [v, votes] = await Promise.all([
-      this.ds.query('SELECT name_enc, phone_last4 FROM visitors WHERE id = $1', [visitorId]),
-      this.ds.query('SELECT category_id, exhibitor_id, created_at FROM votes WHERE visitor_id = $1', [visitorId]),
-    ]);
-    if (!v[0]) return null;
-    return {
-      name: decrypt(v[0].name_enc),
-      phone: `•••• ${v[0].phone_last4}`,
-      votes: Object.fromEntries(votes.map((r: any) => [r.category_id, { exhibitor_id: r.exhibitor_id, at: r.created_at }])),
-    };
+    return this.ds.transaction('REPEATABLE READ', async manager => {
+      const v = await manager.query('SELECT name_enc, phone_last4 FROM visitors WHERE id = $1', [visitorId]);
+      const votes = await manager.query('SELECT category_id, exhibitor_id, created_at FROM votes WHERE visitor_id = $1', [visitorId]);
+      if (!v[0]) return null;
+      return {
+        name: decrypt(v[0].name_enc),
+        phone: `•••• ${v[0].phone_last4}`,
+        votes: Object.fromEntries(votes.map((r: any) => [r.category_id, { exhibitor_id: r.exhibitor_id, at: r.created_at }])),
+      };
+    });
   }
 
   async state(ip: string, visitorId: string | null) {
@@ -118,32 +119,37 @@ export class VisitorService {
     if (!cool.allowed) throw new AppError(429, 'otp_cooldown', `Please wait ${cool.retryAfter}s before requesting another code.`, { retryAfter: cool.retryAfter });
     await this.limits.check('otp-hour', hash, config.otp.maxPerPhonePerHour, 3600, 'Too many codes requested for this number. Try again later.');
 
-    const rows = await this.ds.query(
-      `INSERT INTO visitors (name_enc, phone_enc, phone_hash, phone_last4, consent_outreach, created_ip)
+    const code = randomDigits(config.otp.length);
+    const challengeId = crypto.randomUUID();
+    await this.ds.transaction(async m => {
+      await m.query('LOCK TABLE votes IN ROW EXCLUSIVE MODE');
+      const current = await m.query('SELECT key, value FROM settings');
+      await this.assertCanVote(ip, VisitorService.loc(body.location), Object.fromEntries(current.map((row: any) => [row.key, row.value])) as AllSettings);
+      await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${hash}`]);
+      const rows = await m.query(
+        `INSERT INTO visitors (name_enc, phone_enc, phone_hash, phone_last4, consent_outreach, created_ip)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (phone_hash) DO UPDATE SET phone_hash = EXCLUDED.phone_hash
        RETURNING id`,
-      [encrypt(name), encrypt(phone), hash, phone.slice(-4), consent, ip],
-    );
-    const visitorId = rows[0].id;
-    // Invalidate earlier unused codes for this visitor
-    await this.ds.query('UPDATE otp_challenges SET consumed_at = now() WHERE visitor_id = $1 AND consumed_at IS NULL', [visitorId]);
-
-    const code = randomDigits(config.otp.length);
-    const challengeId = crypto.randomUUID();
-    // The name only replaces the stored name after verification (nobody can rename someone else's record)
-    await this.ds.query(
-      `INSERT INTO otp_challenges (id, visitor_id, code_hash, payload_enc, ip, expires_at)
+        [encrypt(name), encrypt(phone), hash, phone.slice(-4), consent, ip],
+      );
+      const visitorId = rows[0].id;
+      // Invalidate earlier unused codes for this visitor
+      await m.query('UPDATE otp_challenges SET consumed_at = now() WHERE visitor_id = $1 AND consumed_at IS NULL', [visitorId]);
+      // The name only replaces the stored name after verification (nobody can rename someone else's record)
+      await m.query(
+        `INSERT INTO otp_challenges (id, visitor_id, code_hash, payload_enc, ip, expires_at)
        VALUES ($1, $2, $3, $4, $5, now() + make_interval(secs => $6))`,
-      [challengeId, visitorId, otpHash(challengeId, code), encrypt(JSON.stringify({ name, consent })), ip, config.otp.ttlSeconds],
-    );
+        [challengeId, visitorId, otpHash(challengeId, code), encrypt(JSON.stringify({ name, consent })), ip, config.otp.ttlSeconds],
+      );
 
-    try {
-      await this.sms.sendOtp(phone, code);
-    } catch (e) {
-      this.log.error(`sms send failed: ${(e as Error).message}`);
-      throw new AppError(502, 'sms_failed', 'We could not send the SMS right now. Please try again in a moment.');
-    }
+      try {
+        await this.sms.sendOtp(phone, code);
+      } catch (e) {
+        this.log.error(`sms send failed: ${(e as Error).message}`);
+        throw new AppError(502, 'sms_failed', 'We could not send the SMS right now. Please try again in a moment.');
+      }
+    });
     return {
       challengeId,
       phone: maskPhone(phone),
@@ -156,6 +162,11 @@ export class VisitorService {
   async verifyOtp(challengeId: string, rawCode: string): Promise<string> {
     const code = String(rawCode || '').replace(/\D/g, '');
     const result = await this.ds.transaction(async (m) => {
+      await m.query('LOCK TABLE votes IN ROW EXCLUSIVE MODE');
+      const identities = await m.query('SELECT visitor_id FROM otp_challenges WHERE id = $1', [challengeId]);
+      if (!identities.length) return { err: ['otp_invalid', 'This code is no longer valid. Please request a new one.'] };
+      // Match requestOtp's visitor-before-challenge order to avoid resend/verify deadlocks.
+      await m.query('SELECT id FROM visitors WHERE id = $1 FOR UPDATE', [identities[0].visitor_id]);
       const rows = await m.query(
         `SELECT id, visitor_id, code_hash, payload_enc, attempts, expires_at < now() AS expired, consumed_at
            FROM otp_challenges WHERE id = $1 FOR UPDATE`, [challengeId]);
@@ -185,6 +196,12 @@ export class VisitorService {
     const result = await this.ds.transaction(async (m) => {
       // Wait for any reset before checking the visitor (a reset may purge registrations).
       await m.query('LOCK TABLE votes IN ROW EXCLUSIVE MODE');
+      // Recheck after waiting for reset, using committed DB settings rather than cached state.
+      // Keep the row shared-locked until this vote commits, so closing cannot race insertion.
+      const [row] = await m.query("SELECT value FROM settings WHERE key = 'voting' FOR SHARE");
+      const settingsRows = await m.query('SELECT key, value FROM settings');
+      const fresh = { ...Object.fromEntries(settingsRows.map((setting: any) => [setting.key, setting.value])), voting: row.value } as AllSettings;
+      await this.assertCanVote(ip, location, fresh);
       const visitor = await m.query('SELECT 1 FROM visitors WHERE id = $1 AND verified_at IS NOT NULL', [visitorId]);
       if (!visitor.length) throw new AppError(401, 'not_verified', 'Please verify your phone number first.');
 
@@ -208,8 +225,9 @@ export class VisitorService {
 
       if (rows.length) return { created: true };
 
-      throw new AppError(409, 'already_voted', 'You have already voted in this category.', { session: await this.session(visitorId) });
+      return { created: false };
     });
+    if (!result.created) throw new AppError(409, 'already_voted', 'You have already voted in this category.', { session: await this.session(visitorId) });
     await this.bus.publish('vote', { categoryId });
     return { ...result, session: await this.session(visitorId) };
   }

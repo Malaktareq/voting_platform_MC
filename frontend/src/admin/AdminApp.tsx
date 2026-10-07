@@ -1,12 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, ApiError, onAdminSessionExpired } from '../lib/api';
 import type { AdminUser } from '../lib/types';
 import { initials, useBodyClass } from '../lib/util';
 import '../styles/admin.css';
 import { Login } from './Login';
 import { AdminProvider, Spinner, useAdmin } from './ui';
 import Overview from './views/Overview';
+import { useAction } from './useAction';
 
 const Exhibitors = lazy(() => import('./views/Exhibitors'));
 const Categories = lazy(() => import('./views/Categories'));
@@ -32,14 +33,30 @@ export default function AdminApp() {
   useBodyClass('admin');
   const [me, setMe] = useState<AdminUser | null | undefined>(undefined);
   const [tip, setTip] = useState(false);
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!me) return;
+    return onAdminSessionExpired(() => {
+      setSessionMessage('Your session has expired. Please sign in again.');
+      setMe(null);
+    });
+  }, [me]);
 
   const loadMe = useCallback(async () => {
-    try { setMe((await api<{ admin: AdminUser }>('/api/admin/me')).admin); } catch { setMe(null); }
+    setLoadError(null);
+    try { setMe((await api<{ admin: AdminUser }>('/api/admin/me')).admin); }
+    catch (error) {
+      if ((error as ApiError).status === 401) setMe(null);
+      else setLoadError((error as Error).message);
+    }
   }, []);
   useEffect(() => { loadMe(); }, [loadMe]);
 
+  if (loadError) return <div className="card"><p className="alert" role="alert">{loadError}</p><button className="btn" onClick={loadMe}>Retry</button></div>;
   if (me === undefined) return <Spinner />;
-  if (me === null) return <Login onDone={(rec) => { setTip(rec); loadMe(); }} />;
+  if (me === null) return <Login initialMessage={sessionMessage} onDone={(rec) => { setSessionMessage(null); setTip(rec); loadMe(); }} />;
 
   return (
     <AdminProvider me={me} setMe={setMe}>
@@ -50,6 +67,7 @@ export default function AdminApp() {
 
 function Shell({ showMfaTip }: { showMfaTip: boolean }) {
   const { me, isAdmin, setMe, toast } = useAdmin();
+  const { busy, run } = useAction();
   useEffect(() => { if (showMfaTip) toast('Tip: enable two-factor authentication under Security.', 'warn'); }, [showMfaTip, toast]);
 
   return (
@@ -66,7 +84,10 @@ function Shell({ showMfaTip }: { showMfaTip: boolean }) {
             <span className="avatar">{initials(me.username)}</span>
             <div><b>{me.username}</b><span>{me.role === 'admin' ? 'Administrator' : 'Viewer (read-only)'}</span></div>
           </div>
-          <button className="btn btn-ghost-dark btn-block" onClick={async () => { await api('/api/admin/logout', { method: 'POST', body: {} }); setMe(null); }}>Sign out</button>
+          <button className="btn btn-ghost-dark btn-block" disabled={busy} aria-busy={busy} onClick={() => run('logout', async () => {
+            try { await api('/api/admin/logout', { method: 'POST', body: {} }); setMe(null); }
+            catch (ex) { toast((ex as Error).message, 'err'); }
+          })}>{busy ? 'Signing out…' : 'Sign out'}</button>
         </div>
       </aside>
       <main className="main">

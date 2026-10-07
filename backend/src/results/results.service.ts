@@ -3,7 +3,7 @@ import { Observable, Subject, defer, from, interval, map, merge, finalize } from
 import { DataSource, EntityManager } from 'typeorm';
 import { BusService } from '../redis/bus.service';
 import { SettingsService } from '../settings/settings.service';
-import { VotingState } from '../settings/settings.types';
+import { AllSettings, VotingState } from '../settings/settings.types';
 
 export interface Standing { id: number; name: string; project: string; booth: string; image: string | null; votes: number; rank: number }
 export interface CategoryResult { id: number; slug: string; name: string; description: string; total: number; standings: Standing[] }
@@ -27,6 +27,7 @@ export class ResultsService implements OnModuleDestroy {
   private memo: ResultsSnapshot | null = null;
   private memoAt = 0;
   private inflight: Promise<ResultsSnapshot> | null = null;
+  private generation = 0;
   private static readonly MEMO_MS = 750;
 
   private readonly updates = new Subject<ResultsSnapshot>();
@@ -45,21 +46,31 @@ export class ResultsService implements OnModuleDestroy {
 
   get clientCount() { return this.clients; }
 
-  invalidate() { this.memoAt = 0; }
+  invalidate() { this.memoAt = 0; this.generation++; }
 
   async snapshot(force = false): Promise<ResultsSnapshot> {
     if (!force && this.memo && Date.now() - this.memoAt < ResultsService.MEMO_MS) return this.memo;
     if (this.inflight) return this.inflight;
-    this.inflight = this.compute()
+    this.inflight = this.computeCurrent()
       .then((s) => { this.memo = s; this.memoAt = Date.now(); return s; })
       .finally(() => { this.inflight = null; });
     return this.inflight;
+  }
+
+  private async computeCurrent(): Promise<ResultsSnapshot> {
+    for (;;) {
+      const generation = this.generation;
+      const snapshot = await this.compute();
+      // A reset or vote committed while queries were running: discard the old snapshot.
+      if (generation === this.generation) return snapshot;
+    }
   }
 
   /** Uncached snapshot on the reset transaction's connection and isolation snapshot. */
   snapshotForReset(manager: EntityManager): Promise<ResultsSnapshot> { return this.compute(manager); }
 
   private async compute(db: DataSource | EntityManager = this.ds): Promise<ResultsSnapshot> {
+    if (db instanceof DataSource) return db.transaction('REPEATABLE READ', manager => this.compute(manager));
     const queries = [
       () => db.query('SELECT id, slug, name, description FROM categories WHERE is_active ORDER BY sort_order, id'),
       () => db.query(`
@@ -87,7 +98,8 @@ export class ResultsService implements OnModuleDestroy {
       let rank = 0; let prev: number | null = null;
       c.standings.forEach((s, i) => { if (s.votes !== prev) { rank = i + 1; prev = s.votes; } s.rank = rank; });
     }
-    const st = await this.settings.getAll();
+    const settingsRows = await db.query('SELECT key, value FROM settings');
+    const st = Object.fromEntries(settingsRows.map((row: any) => [row.key, row.value])) as AllSettings;
     return {
       event: { name: st.event.name, tagline: st.event.tagline },
       voting: this.settings.votingState(st),

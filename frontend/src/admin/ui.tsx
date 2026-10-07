@@ -2,19 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { AdminUser } from '../lib/types';
 
 // ------------------------------------------------------------------ Modal
-export function Modal({ title, wide, onClose, children }: { title: string; wide?: boolean; onClose: () => void; children: React.ReactNode }) {
+export function Modal({ title, wide, busy = false, onClose, children }: { title: string; wide?: boolean; busy?: boolean; onClose: () => void; children: React.ReactNode }) {
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
     document.addEventListener('keydown', esc);
-    cardRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus();
     return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
+  }, [onClose, busy]);
+  useEffect(() => { cardRef.current?.querySelector<HTMLElement>('input, textarea, select')?.focus(); }, []);
   return (
     <div className="modal">
-      <div className="modal-bg" onClick={onClose} />
+      <div className="modal-bg" onClick={() => { if (!busy) onClose(); }} />
       <div className={`modal-card${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" ref={cardRef}>
-        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" aria-label="Close" onClick={onClose}>×</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" aria-label="Close" disabled={busy} onClick={onClose}>×</button></div>
         {children}
       </div>
     </div>
@@ -94,15 +94,17 @@ export function useLoad<T>(fn: () => Promise<T>, deps: React.DependencyList = []
   const ctx = useContext(Ctx);
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const run = useCallback(async () => {
+    setLoading(true);
     try { setData(await fn()); setError(null); } catch (e) {
-      if ((e as { status?: number }).status === 401 && ctx) { ctx.setMe(null); return; } // session expired → back to sign-in
+      if ((e as { code?: string }).code === 'unauthorized' && ctx) { ctx.setMe(null); return; }
       setError((e as Error).message);
-    }
+    } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   useEffect(() => { run(); }, [run]);
-  return { data, error, reload: run, setData };
+  return { data, error, loading, reload: run, setData };
 }
 
 export function LoadError({ error }: { error: string }) {

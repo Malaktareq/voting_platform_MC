@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
+import { AppError } from '../common/http-error';
 import { BusService } from '../redis/bus.service';
 import { AllSettings, SettingsKey, VotingState } from './settings.types';
 
@@ -33,10 +34,12 @@ export class SettingsService {
   }
 
   async ensureDefaults() {
-    for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-      const val = k === 'display' ? { ...v, key: crypto.randomBytes(18).toString('base64url') } : v;
-      await this.ds.query('INSERT INTO settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, val]);
-    }
+    await this.ds.transaction(async manager => {
+      for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
+        const val = k === 'display' ? { ...v, key: crypto.randomBytes(18).toString('base64url') } : v;
+        await manager.query('INSERT INTO settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, val]);
+      }
+    });
   }
 
   async getAll(force = false): Promise<AllSettings> {
@@ -48,15 +51,25 @@ export class SettingsService {
     return out;
   }
 
-  async update<K extends SettingsKey>(key: K, patch: Partial<AllSettings[K]>): Promise<AllSettings[K]> {
+  async update<K extends SettingsKey>(key: K, patch: Partial<AllSettings[K]>,
+    audit?: (manager: EntityManager) => Promise<void>): Promise<AllSettings[K]> {
     if (!(key in DEFAULT_SETTINGS)) throw new Error(`unknown settings key ${key}`);
-    const current = (await this.getAll(true))[key];
-    const next = { ...current, ...patch };
-    await this.ds.query(
-      `INSERT INTO settings(key, value, updated_at) VALUES ($1, $2, now())
+    const next = await this.ds.transaction(async manager => {
+      // Lock even when a default row is absent; concurrent patches must merge with the latest row.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`settings:${key}`]);
+      const rows = await manager.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
+      const next = { ...DEFAULT_SETTINGS[key], ...rows[0]?.value, ...patch };
+      if (key === 'voting' && next.opens_at && next.closes_at && Date.parse(next.closes_at) <= Date.parse(next.opens_at)) {
+        throw new AppError(400, 'bad_voting_window', 'Voting end must be after voting start.');
+      }
+      await manager.query(
+        `INSERT INTO settings(key, value, updated_at) VALUES ($1, $2, now())
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-      [key, next],
-    );
+        [key, next],
+      );
+      if (audit) await audit(manager);
+      return next;
+    });
     this.cache = null;
     await this.bus.publish('settings', { key });
     return next;
