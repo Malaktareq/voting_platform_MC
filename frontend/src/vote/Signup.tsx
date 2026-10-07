@@ -69,6 +69,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!(e.currentTarget as HTMLFormElement).reportValidity()) return;
     const f = { ...form, name: form.name.trim(), phone: form.phone.trim() };
     if (f.name.length < 2) { nameRef.current?.focus(); setErr(`${t('name')} ✱`); return; }
     if (!f.phone) { phoneRef.current?.focus(); setErr(`${t('phone')} ✱`); return; }
@@ -131,7 +132,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
         <label className="login-design-field" htmlFor="f-phone">
           <span className="sr-only">{t('phone')}</span>
           <span className="field-icon number-icon" aria-hidden="true">#</span>
-          <input id="f-phone" ref={phoneRef} name="phone" type="tel" inputMode="tel" autoComplete="tel" required dir="ltr"
+          <input id="f-phone" ref={phoneRef} name="phone" type="tel" inputMode="tel" autoComplete="tel" required maxLength={40} pattern="[+0-9٠-٩۰-۹\s\(\).\-]+" dir="ltr"
             placeholder={t('number')} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </label>
         {err && <p className="alert">{err}</p>}
@@ -201,8 +202,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       <p className="muted">{t('otpBody', challenge.phone)}</p>
       {challenge.devCode && <p className="demo">{t('demoCode', challenge.devCode)}</p>}
       <form onSubmit={(e) => { e.preventDefault(); verify(code); }}>
-        <input id="f-code" ref={inputRef} className="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*"
-          maxLength={6} required aria-label={t('otpTitle')} dir="ltr" value={code} onChange={(e) => onChange(e.target.value)} />
+        <input id="f-code" ref={inputRef} className="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}"
+          maxLength={6} required aria-label={t('otpTitle')} dir="ltr" value={code} onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))} />
         {err && <p className="alert">{err}</p>}
         <button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? t('verifying') : t('verify')}</button>
       </form>

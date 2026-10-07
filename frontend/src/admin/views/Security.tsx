@@ -33,7 +33,7 @@ function MfaCard() {
         <details><summary>Disable two-factor</summary>
           <div className="grid3">
             <input className="input" type="password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
-            <input className="input" inputMode="numeric" maxLength={6} placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value)} />
+            <input className="input" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" placeholder="6-digit code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
             <button className="btn btn-danger" onClick={async () => {
               try { await api('/api/admin/mfa/disable', { method: 'POST', body: { password: pw, code } }); setMe({ ...me, totp_enabled: false }); toast('Two-factor disabled', 'warn'); }
               catch (ex) { toast((ex as Error).message, 'err'); }
@@ -53,7 +53,7 @@ function MfaCard() {
             <p>1. Scan this QR code with your authenticator app.</p>
             <p className="muted small">Or enter this key manually: <code>{setup.secret}</code></p>
             <p>2. Enter the 6-digit code it shows:</p>
-            <input className="input otp-in" inputMode="numeric" maxLength={6} placeholder="123456" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
+            <input className="input otp-in" inputMode="numeric" maxLength={6} pattern="[0-9]{6}" placeholder="123456" autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
             <button className="btn btn-primary" onClick={async () => {
               try { await api('/api/admin/mfa/enable', { method: 'POST', body: { code } }); setMe({ ...me, totp_enabled: true }); setSetup(null); setCode(''); toast('Two-factor enabled'); }
               catch (ex) { toast((ex as Error).message, 'err'); }
@@ -85,8 +85,8 @@ function PasswordCard() {
         try { await api('/api/admin/password', { method: 'POST', body: { current, next } }); setCurrent(''); setNext(''); toast('Password changed'); }
         catch (ex) { toast((ex as Error).message, 'err'); }
       }}>
-        <label className="field"><span>Current password</span><input className="input" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></label>
-        <label className="field"><span>New password (10+ chars)</span><input className="input" type="password" autoComplete="new-password" minLength={10} value={next} onChange={(e) => setNext(e.target.value)} /></label>
+        <label className="field"><span>Current password</span><input className="input" type="password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} /></label>
+        <label className="field"><span>New password (10+ chars)</span><input className="input" type="password" autoComplete="new-password" required minLength={10} maxLength={200} value={next} onChange={(e) => setNext(e.target.value)} /></label>
         <div className="field"><span>&nbsp;</span><button className="btn btn-primary">Update password</button></div>
       </form>
     </section>
@@ -125,8 +125,8 @@ function UsersCard() {
         try { await api('/api/admin/users', { method: 'POST', body: u }); toast('User added'); setU({ username: '', password: '', role: 'admin' }); reload(); }
         catch (ex) { toast((ex as Error).message, 'err'); }
       }}>
-        <input className="input" placeholder="username" value={u.username} onChange={(e) => setU({ ...u, username: e.target.value })} />
-        <input className="input" type="password" placeholder="temporary password (10+)" value={u.password} onChange={(e) => setU({ ...u, password: e.target.value })} />
+        <input className="input" placeholder="username" required minLength={3} maxLength={32} pattern="[a-zA-Z0-9._\-]{3,32}" title="3–32 letters, digits, dots, underscores or hyphens" value={u.username} onChange={(e) => setU({ ...u, username: e.target.value })} />
+        <input className="input" type="password" placeholder="temporary password (10+)" required minLength={10} maxLength={200} value={u.password} onChange={(e) => setU({ ...u, password: e.target.value })} />
         <select className="input" value={u.role} onChange={(e) => setU({ ...u, role: e.target.value })}>
           <option value="admin">Administrator</option><option value="viewer">Viewer (read-only)</option>
         </select>

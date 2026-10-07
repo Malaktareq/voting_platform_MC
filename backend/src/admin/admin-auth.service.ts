@@ -13,7 +13,7 @@ import { AuditService } from '../core/audit.service';
 import { Admin } from '../database/entities/admin.entity';
 
 const LOCK_AFTER = 5;
-const LOCK_MINUTES = 15;
+const LOCK_MINUTES = 5;
 // Valid-format hash of a random password: keeps login timing identical for unknown users
 const DUMMY_HASH = 'scrypt$16384$8$1$c29tZXNhbHRzb21lc2FsdA==$' + Buffer.alloc(64).toString('base64');
 

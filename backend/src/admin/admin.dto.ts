@@ -1,41 +1,41 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min, MaxLength, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 import { ACCESS_MODES, AccessMode } from '../settings/settings.types';
 
 export class LoginDto {
   @IsString() @MaxLength(64) username: string;
   @IsString() @MaxLength(200) password: string;
 }
-export class CodeDto { @IsString() @MaxLength(10) code: string }
-export class DisableMfaDto { @IsString() password: string; @IsString() code: string }
-export class ChangePasswordDto { @IsString() current: string; @IsString() @MaxLength(200) next: string }
+export class CodeDto { @IsString() @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' }) code: string }
+export class DisableMfaDto { @IsString() password: string; @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' }) code: string }
+export class ChangePasswordDto { @IsString() @MinLength(1) current: string; @IsString() @MinLength(10) @MaxLength(200) next: string }
 export class CreateUserDto {
-  @IsString() @MaxLength(32) username: string;
-  @IsString() @MaxLength(200) password: string;
+  @IsString() @Matches(/^[a-zA-Z0-9._-]{3,32}$/) username: string;
+  @IsString() @MinLength(10) @MaxLength(200) password: string;
   @IsOptional() @IsIn(['admin', 'viewer']) role?: 'admin' | 'viewer';
 }
 
 export class CategoryDto {
-  @IsString() @MaxLength(80) name: string;
+  @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(80) name: string;
   @IsOptional() @IsString() @MaxLength(40) slug?: string;
   @IsOptional() @IsString() @MaxLength(300) description?: string;
-  @IsOptional() @IsInt() sort_order?: number;
+  @ValidateIf((_, value) => value !== undefined) @IsInt() @Min(0) @Max(2147483647) sort_order?: number;
   @IsOptional() @IsBoolean() is_active?: boolean;
 }
 
 /** Multipart form fields arrive as strings; parsed in CatalogService. */
 export class ExhibitorFormDto {
-  @IsString() @MaxLength(100) name: string;
+  @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(100) name: string;
   @IsOptional() @IsString() @MaxLength(120) project?: string;
   @IsOptional() @IsString() @MaxLength(400) description?: string;
   @IsOptional() @IsString() @MaxLength(20) booth?: string;
-  @IsOptional() @IsString() is_active?: string;
+  @IsOptional() @IsIn(['true', 'false']) is_active?: string;
   @IsOptional() @IsString() category_ids?: string;
-  @IsOptional() @IsString() remove_photo?: string;
+  @IsOptional() @IsIn(['true', 'false']) remove_photo?: string;
 }
 
 export class EventSettingsDto {
-  @IsString() @MaxLength(80) name: string;
+  @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(80) name: string;
   @IsOptional() @IsString() @MaxLength(120) tagline?: string;
   @IsOptional() @IsString() @MaxLength(120) venue?: string;
 }

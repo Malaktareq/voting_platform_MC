@@ -46,13 +46,18 @@ function CategoryForm({ category, nextOrder, onClose, onSaved }: { category: Adm
   const isNew = !category;
   const [name, setName] = useState(category?.name || '');
   const [description, setDescription] = useState(category?.description || '');
-  const [order, setOrder] = useState(category?.sort_order ?? nextOrder);
+  const [order, setOrder] = useState(String(category?.sort_order ?? nextOrder));
   const [active, setActive] = useState(category ? category.is_active : true);
   const [err, setErr] = useState<string | null>(null);
   return (
     <Modal title={isNew ? 'Add category' : 'Edit category'} onClose={onClose}>
       <form className="stack" onSubmit={async (e) => {
         e.preventDefault();
+        if (!e.currentTarget.reportValidity()) return;
+        if (!/^\d+$/.test(order) || !Number.isSafeInteger(Number(order)) || Number(order) > 2147483647) {
+          setErr('Display order must be a whole number between 0 and 2147483647.');
+          return;
+        }
         try {
           await api(isNew ? '/api/admin/categories' : `/api/admin/categories/${category!.id}`, {
             method: isNew ? 'POST' : 'PUT',
@@ -64,7 +69,7 @@ function CategoryForm({ category, nextOrder, onClose, onSaved }: { category: Adm
         <label className="field"><span>Name</span><input className="input" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="field"><span>Description (shown to visitors)</span><textarea className="input" rows={2} maxLength={300} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
         <div className="grid2">
-          <label className="field"><span>Display order</span><input className="input" type="number" value={order} onChange={(e) => setOrder(Number(e.target.value))} /></label>
+          <label className="field"><span>Display order</span><input className="input" type="number" min={0} max={2147483647} step={1} required value={order} onChange={(e) => setOrder(e.target.value)} /></label>
           <label className="check"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /><span>Active</span></label>
         </div>
         {err && <p className="alert">{err}</p>}
