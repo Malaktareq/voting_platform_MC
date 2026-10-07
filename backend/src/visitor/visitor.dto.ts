@@ -23,6 +23,10 @@ export class VerifyOtpDto {
   @IsString() @Matches(/^\d{6}$/, { message: 'Code must be exactly 6 digits.' }) code: string;
 }
 
+export class VoteQrEntryDto {
+  @IsString() @MaxLength(120) token: string;
+}
+
 export class CastVoteDto {
   @IsInt() @Min(1) @Max(2147483647) categoryId: number;
   @IsInt() @Min(1) @Max(2147483647) exhibitorId: number;
