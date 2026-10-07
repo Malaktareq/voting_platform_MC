@@ -15,6 +15,7 @@ import { CATEGORIES, EXHIBITORS, main as seed } from '../src/cli/seed';
 import { normalizePhone } from '../src/common/phone.util';
 import { currentTotp, generateTotpSecret, verifyTotp } from '../src/common/totp.util';
 import { AccessService } from '../src/core/access.service';
+import { VoteQrService } from '../src/core/vote-qr.service';
 import { AccessMode, AllSettings } from '../src/settings/settings.types';
 
 describe('phone normalisation', () => {
@@ -175,7 +176,7 @@ describe('location validation', () => {
     expect(geoAllowed(here, g as Geofence).reason).toBe('bad_geofence');
     const settings = { update: jest.fn() };
     const audit = { record: jest.fn() };
-    const service = new EventService(settings as unknown as SettingsService, audit as unknown as AuditService);
+    const service = new EventService(settings as unknown as SettingsService, audit as unknown as AuditService, new VoteQrService());
     await expect(service.updateAccess('admin', '127.0.0.1', { geofence: g as GeofenceDto }))
       .rejects.toMatchObject({ response: { error: 'bad_geofence' } });
     expect(settings.update).not.toHaveBeenCalled();
@@ -188,7 +189,7 @@ describe('location validation', () => {
   it.each([0, undefined])('saves zero or omitted admin accuracy %s consistently', async (accuracy) => {
     const settings = { update: jest.fn().mockImplementation(async (_, patch) => patch) };
     const audit = { record: jest.fn().mockResolvedValue(undefined) };
-    const service = new EventService(settings as unknown as SettingsService, audit as unknown as AuditService);
+    const service = new EventService(settings as unknown as SettingsService, audit as unknown as AuditService, new VoteQrService());
     const g = { ...fence, max_accuracy_m: accuracy };
     expect(validateSync(plainToInstance(GeofenceDto, g))).toHaveLength(0);
     await service.updateAccess('admin', '127.0.0.1', { geofence: g });
@@ -310,5 +311,53 @@ describe('crypto', () => {
     const h = await c.hashPassword('correct horse battery');
     expect(await c.verifyPassword('correct horse battery', h)).toBe(true);
     expect(await c.verifyPassword('wrong', h)).toBe(false);
+  });
+});
+
+describe('venue screen QR', () => {
+  it('encodes a currently valid entry token in the voting URL and says when it rotates', async () => {
+    const qr = new VoteQrService();
+    const now = Date.now();
+    const { token, refreshAt } = qr.issue(now);
+    expect(qr.isValid(token, now)).toBe(true);
+    const entry = await qr.entryQr('http://192.168.1.20:3000/', 200, now);
+    expect(entry.qr).toMatch(/^data:image\/png;base64,/);
+    expect(entry.refreshAt).toBe(refreshAt);
+    expect(entry.refreshIn).toBe(refreshAt - now);
+    expect(entry.refreshIn).toBeGreaterThan(0);
+  });
+
+  it('accepts the previous code for scan latency but rejects older or forged ones', () => {
+    const qr = new VoteQrService();
+    const now = Date.now();
+    const period = 20_000;
+    expect(qr.isValid(qr.issue(now - period).token, now)).toBe(true);
+    expect(qr.isValid(qr.issue(now - 2 * period).token, now)).toBe(false);
+    expect(qr.isValid(qr.issue(now + period).token, now)).toBe(false);
+    expect(qr.isValid('v1.1.forged', now)).toBe(false);
+  });
+});
+
+describe('voting page address (what the venue QR opens)', () => {
+  it.each([
+    ['http://192.168.1.20:3000', 'http://192.168.1.20:3000'],
+    ['192.168.1.20:3000', 'http://192.168.1.20:3000'],
+    ['  http://192.168.1.20:3000/admin?x=1#y  ', 'http://192.168.1.20:3000'],
+    ['https://vote.example.org/', 'https://vote.example.org'],
+    ['', ''],
+    ['   ', ''],
+  ])('normalises %j to %j', (input, expected) => {
+    expect(EventService.publicUrl(input)).toBe(expected);
+  });
+
+  it.each(['ftp://192.168.1.20', 'javascript:alert(1)', 'http://', 'http://user:pw@192.168.1.20', 'not a url at all'])('rejects %j', (input) => {
+    expect(() => EventService.publicUrl(input)).toThrow(/address visitors open/);
+  });
+
+  it('puts the address in the QR and makes the token current', async () => {
+    const qr = new VoteQrService();
+    const now = Date.now();
+    const { qr: image } = await qr.entryQr('http://192.168.1.20:3000', 300, now);
+    expect(image).toMatch(/^data:image\/png;base64,/);
   });
 });

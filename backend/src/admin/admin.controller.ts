@@ -142,6 +142,7 @@ export class EventController {
   rotate(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin) { return this.event.rotateDisplayKey(actor(a), ip); }
 
   @Get('links')
+  @Header('Cache-Control', 'no-store')
   links(@CurrentAdmin() a: AuthedAdmin) { return this.event.links(a.role === 'admin'); }
 }
 
@@ -170,7 +171,7 @@ export class ReportsController {
 
   @Get('visitors') @Roles('admin')
   @Header('Cache-Control', 'no-store')
-  visitors(@Query('limit') limit?: string, @Query('offset') offset?: string) { return this.reports.visitors(Number(limit), Number(offset)); }
+  visitors(@Query('limit') limit?: string, @Query('offset') offset?: string) { return this.reports.visitors(limit, offset); }
 
   @Get('export/visitors.csv') @Roles('admin')
   @Header('Cache-Control', 'no-store')

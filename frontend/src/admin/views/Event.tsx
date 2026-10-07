@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { Settings } from '../../lib/types';
+import { isLocalAddress } from '../address';
 import { useLang } from '../i18n';
 import { LoadError, Spinner, useAdmin, useLoad } from '../ui';
 import { useAction } from '../useAction';
@@ -11,14 +12,14 @@ export default function Event() {
   const { t } = useLang();
   const e = t.event;
   const { data, error, reload } = useLoad(() => api<{ settings: Settings }>('/api/admin/settings'));
-  const [ev, setEv] = useState({ name: '', tagline: '', venue: '' });
+  const [ev, setEv] = useState({ name: '', tagline: '', venue: '', public_url: '' });
   const [showCounts, setShowCounts] = useState(true);
   const { busy, pending, run } = useAction();
 
   useEffect(() => {
     if (!data) return;
     const s = data.settings;
-    setEv({ name: s.event.name, tagline: s.event.tagline, venue: s.event.venue });
+    setEv({ name: s.event.name, tagline: s.event.tagline, venue: s.event.venue, public_url: s.event.public_url || '' });
     setShowCounts(s.display.show_counts !== false);
   }, [data]);
 
@@ -48,6 +49,12 @@ export default function Event() {
           <label className="field"><span>{e.tagline}</span><input className="input" maxLength={120} disabled={dis} value={ev.tagline} onChange={(x) => setEv({ ...ev, tagline: x.target.value })} /></label>
           <label className="field"><span>{e.venue}</span><input className="input" maxLength={120} disabled={dis} value={ev.venue} onChange={(x) => setEv({ ...ev, venue: x.target.value })} /></label>
         </div>
+        <label className="field address-field"><span>{e.address}</span>
+          <input className="input mono" dir="ltr" type="text" inputMode="url" autoCapitalize="none" spellCheck={false} maxLength={200} disabled={dis} placeholder="http://192.168.1.20:3000"
+            value={ev.public_url} onChange={(x) => setEv({ ...ev, public_url: x.target.value })} />
+          <small className="muted">{e.addressHint}</small>
+          {isLocalAddress(ev.public_url) && <small className="address-warn" role="note">{e.addressLocal}</small>}
+        </label>
         {!dis && <div className="form-foot"><span /><button type="submit" className="btn btn-primary" disabled={busy} aria-busy={pending === 'event'}>{pending === 'event' ? t.common.saving : e.save}</button></div>}
       </form>
 

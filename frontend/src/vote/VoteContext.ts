@@ -11,6 +11,8 @@ export interface VoteCtx {
   location: GeoPoint | null;
   setLocation: (l: GeoPoint | null) => void;
   setOnSite: (v: boolean) => void;
+  checkLocation: (location: GeoPoint) => Promise<boolean>;
+  requireQr: () => void;
   reload: () => Promise<void>;
   setToast: (msg: string | null) => void;
 }

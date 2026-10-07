@@ -1,5 +1,4 @@
 import { useContext, useState } from 'react';
-import { api } from '../lib/api';
 import { accent, getLocation } from '../lib/util';
 import { useVote, VoteContext } from './VoteContext';
 
@@ -65,7 +64,7 @@ export function ClosedScreen() {
 }
 
 export function OffsiteScreen() {
-  const { t, setLocation, setOnSite, reload } = useVote();
+  const { t, checkLocation, reload } = useVote();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -73,8 +72,7 @@ export function OffsiteScreen() {
     setBusy(true); setMsg(null);
     try {
       const loc = await getLocation();
-      const r = await api<{ allowed: boolean }>('/api/public/access-check', { method: 'POST', body: { location: loc } });
-      if (r.allowed) { setLocation(loc); setOnSite(true); return; }
+      if (await checkLocation(loc)) return;
       setMsg(t('locOutside'));
     } catch (e: any) {
       setMsg(e && e.code === 1 ? t('locDenied') : e?.message || t('locOutside'));
@@ -94,6 +92,17 @@ export function OffsiteScreen() {
         <button className="btn btn-primary btn-block" disabled={busy} onClick={useMyLocation}>{busy ? t('locating') : t('useLocation')}</button>
         <button className="btn btn-ghost btn-block" onClick={() => reload()}>{t('retry')}</button>
       </div>
+    </section>
+  );
+}
+
+export function QrRequiredScreen() {
+  const { t, reload } = useVote();
+  return (
+    <section className="panel center">
+      <h1 className="title-sm">{t('qrTitle')}</h1>
+      <p className="muted">{t('qrRequired')}</p>
+      <button className="btn btn-ghost" onClick={() => reload()}>{t('retry')}</button>
     </section>
   );
 }

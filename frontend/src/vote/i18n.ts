@@ -3,6 +3,7 @@ export type Lang = 'en' | 'ar';
 
 export const T = {
   en: {
+    qrTitle: 'Scan the venue QR code',
     awards: 'Community Awards', switchTo: 'عربي',
     heroKicker: 'The Maker Collective 2026', heroTitle: 'Pick your favourite makers',
     heroBody: (n: number) => `${n} awards · one vote each · takes under a minute.`,
@@ -12,6 +13,7 @@ export const T = {
     sendCode: 'Log In', sending: 'Sending…',
     privacy: 'Your name and number are stored securely and only seen by the Makerspace team.',
     qrRequired: 'Scan the current voting QR code on the venue screen to continue. It changes every 20 seconds.',
+    qrExpired: 'That QR code expired. Scan the current code on the venue screen.',
     otpTitle: 'Enter your code', otpBody: (p: string) => `We sent a 6-digit code to ${p}.`,
     verify: 'Verify', verifying: 'Checking…', resend: 'Resend code', resendIn: (s: number) => `Resend in ${s}s`, changeNumber: 'Change number',
     demoCode: (c: string) => `Demo mode — your code is ${c}`,
@@ -33,13 +35,15 @@ export const T = {
     catDone: 'Done',
   },
   ar: {
+    qrTitle: 'امسح رمز QR في مكان الفعالية',
     awards: 'جوائز المجتمع', switchTo: 'English',
     heroKicker: 'ملتقى الصُنّاع ٢٠٢٦', heroTitle: 'اختر صُنّاعك المفضّلين',
     heroBody: (n: number) => `${n} جوائز · صوت واحد لكل جائزة · أقل من دقيقة.`,
     name: 'اسمك', namePh: 'مثال: سارة أحمد', number: 'رقمك',
     phone: 'رقم الهاتف', phonePh: '07X XXX XXXX', phoneHint: 'سنرسل لك رمزًا من ٦ أرقام. كل هاتف = مجموعة أصوات واحدة.',
     consent: 'أرغب بمعرفة فعاليات الميكرسبيس القادمة.',
-    qrRequired: '\u0627\u0645\u0633\u062d \u0631\u0645\u0632 \u0627\u0644\u062a\u0635\u0648\u064a\u062a \u0627\u0644\u062d\u0627\u0644\u064a \u0639\u0644\u0649 \u0634\u0627\u0634\u0629 \u0627\u0644\u0641\u0639\u0627\u0644\u064a\u0629 \u0644\u0644\u0645\u062a\u0627\u0628\u0639\u0629. \u064a\u062a\u063a\u064a\u0631 \u0643\u0644 5 \u062b\u0648\u0627\u0646\u064d.',
+    qrRequired: 'امسح رمز التصويت الحالي على شاشة الفعالية للمتابعة. يتغيّر الرمز كل 20 ثانية.',
+    qrExpired: 'انتهت صلاحية رمز QR هذا. امسح الرمز الحالي على شاشة الفعالية.',
     sendCode: 'تسجيل الدخول', sending: 'جارٍ الإرسال…',
     privacy: 'يتم حفظ اسمك ورقمك بشكل آمن ولا يطّلع عليهما إلا فريق الميكرسبيس.',
     otpTitle: 'أدخل الرمز', otpBody: (p: string) => `أرسلنا رمزًا من ٦ أرقام إلى ${p}.`,

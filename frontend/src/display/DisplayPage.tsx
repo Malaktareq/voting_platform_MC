@@ -48,7 +48,7 @@ export default function DisplayPage() {
   const [lockMsg, setLockMsg] = useState<string | null>(null);
   const [snap, setSnap] = useState<ResultsSnapshot | null>(null);
   const [prev, setPrev] = useState<ResultsSnapshot | null>(null);
-  const [qr, setQr] = useState<{ url: string; qr: string } | null>(null);
+  const [qr, setQr] = useState<{ qr: string; refreshIn: number } | null>(null);
   const [lastUpdate, setLastUpdate] = useState(0);
   const [, tick] = useState(0);
   const [connection, setConnection] = useState<LiveStatus>('connecting');
@@ -92,22 +92,25 @@ export default function DisplayPage() {
     return () => { clearTimeout(timer); bootGeneration.current++; };
   }, [boot, phase, retryAttempt]);
 
+  // The voting QR carries a signed entry token that rotates; fetch the next one as each expires.
   useEffect(() => {
-    if (phase !== 'live' || qr) return;
-    let disposed = false, pending = false;
+    if (phase !== 'live') return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
-      if (pending) return;
-      pending = true;
       try {
-        const result = await api<{ url: string; qr: string }>('/api/display/qr');
-        if (!disposed) setQr(result);
-      } catch { /* Retry temporary QR loading failures without interrupting standings. */ }
-      finally { pending = false; }
+        const result = await api<{ qr: string; refreshIn: number }>('/api/display/qr');
+        if (disposed) return;
+        setQr(result);
+        timer = setTimeout(load, Math.max(1000, result.refreshIn + 250));
+      } catch {
+        // Keep the current code (still valid for one more period) and retry shortly.
+        if (!disposed) timer = setTimeout(load, 3000);
+      }
     };
     void load();
-    const timer = setInterval(load, 5000);
-    return () => { disposed = true; clearInterval(timer); };
-  }, [phase, qr]);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [phase]);
 
   // Live channel
   useEffect(() => {
@@ -125,7 +128,8 @@ export default function DisplayPage() {
   if (phase === 'error') return <div className="center"><div><p role="alert">{lockMsg || 'Cannot connect to live results. Retrying…'}</p><button onClick={() => setPhase('loading')}>Retry now</button></div></div>;
   if (!snap) return <div className="center"><span className="spinner" /></div>;
 
-  const finalMode = !snap.voting.open && snap.totals.votes > 0;
+  // Winners are announced only when the admin says so; a closed or paused vote is not final.
+  const finalMode = !snap.voting.open && snap.show_winners && snap.totals.votes > 0;
   const stale = Date.now() - lastUpdate > 30000;
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { ResultsSnapshot, Settings, VotingState } from '../../lib/types';
@@ -7,9 +7,10 @@ import { scheduleInput, scheduleWindow } from '../../lib/schedule';
 import { useAction } from '../useAction';
 import { LoadError, PageHead, Spinner, Tile, useAdmin, useLoad } from '../ui';
 import { accessSummary, modeLabel, usesGeo, usesIp } from '../accessModes';
+import { isLocalAddress } from '../address';
 import { useLang } from '../i18n';
 
-interface Stats { verified_visitors: number; votes: number; votes_last_5m: number; otps_last_hour: number; live_screens_this_node: number; redis: string; exhibitors: number }
+interface Stats { verified_visitors: number; votes: number; votes_last_5m: number; otps_last_hour: number; live_screens_this_node: number; redis: string; exhibitors: number; off_site_blocked: number }
 interface Links { voteUrl: string; displayUrl: string | null }
 
 export default function Dashboard() {
@@ -27,9 +28,37 @@ export default function Dashboard() {
   const [closesAt, setClosesAt] = useState('');
   const { busy, pending, run } = useAction();
   const [currentVoting, setCurrentVoting] = useState<{ voting: VotingState; enabled: boolean } | null>(null);
+  const [currentSettings, setCurrentSettings] = useState<Settings | null>(null);
+  const settingsRevision = useRef(0);
+  const settingsWriting = useRef(false);
+
+  const saveSettings = async <K extends 'voting' | 'display'>(key: K, body: Partial<Settings[K]>) => {
+    settingsWriting.current = true;
+    settingsRevision.current++;
+    try {
+      const saved = await api<{ value: Settings[K] }>(`/api/admin/settings/${key}`, { method: 'PUT', body });
+      setCurrentSettings(previous => {
+        const settings = previous ?? data?.[0].settings;
+        if (!settings) return previous;
+        return { ...settings, [key]: saved.value,
+          ...(key === 'voting' && (body as Partial<Settings['voting']>).open === true ? { display: { ...settings.display, show_winners: false } } : {}) };
+      });
+      try {
+        const result = await api<{ settings: Settings; voting: VotingState }>('/api/admin/settings');
+        setCurrentSettings(result.settings);
+        setCurrentVoting({ voting: result.voting, enabled: result.settings.voting.open });
+      } catch { /* The write succeeded; normal polling retries a failed refresh. */ }
+    } finally {
+      settingsRevision.current++;
+      settingsWriting.current = false;
+    }
+  };
 
   useEffect(() => {
-    if (data) setCurrentVoting({ voting: data[0].voting, enabled: data[0].settings.voting.open });
+    if (data) {
+      setCurrentVoting({ voting: data[0].voting, enabled: data[0].settings.voting.open });
+      setCurrentSettings(data[0].settings);
+    }
   }, [data]);
 
   // Refresh the authoritative state at schedule boundaries and after missed live updates.
@@ -38,11 +67,13 @@ export default function Dashboard() {
     let cancelled = false;
     let pending = false;
     const refresh = async () => {
-      if (pending) return;
+      if (pending || settingsWriting.current) return;
       pending = true;
+      const revision = settingsRevision.current;
       try {
         const result = await api<{ settings: Settings; voting: VotingState }>('/api/admin/settings');
-        if (!cancelled) {
+        if (!cancelled && revision === settingsRevision.current) {
+          setCurrentSettings(result.settings);
           setCurrentVoting({ voting: result.voting, enabled: result.settings.voting.open });
           if (!isAdmin) {
             setOpensAt(scheduleInput(result.settings.voting.opens_at));
@@ -160,10 +191,10 @@ export default function Dashboard() {
 
   if (error) return <LoadError error={error} />;
   if (!data) return <Spinner />;
-  const [{ settings: s }, links] = data;
+  const [, links] = data;
+  const s = currentSettings ?? data[0].settings;
   const d = t.dash;
   const voting = currentVoting?.voting ?? data[0].voting;
-  const open = currentVoting?.enabled ?? s.voting.open;
   const state = voting.open
     ? { tone: 'open', title: d.open, detail: voting.closes_at ? d.openUntil(t.when(voting.closes_at)) : d.openNow }
     : voting.reason === 'not_started'
@@ -179,15 +210,43 @@ export default function Dashboard() {
     ? { tone: 'off', text: d.protectionOff }
     : { tone: ipMissing || geoMissing ? 'warn' : 'ok', text: `${modeLabel(t, access.mode)} · ${accessSummary(t, access)}` };
 
-  const toggle = () => run('voting', async () => {
-    if (open && !(await confirm(d.confirmClose, { danger: true, confirmText: d.closeBtn }))) return;
-    await api('/api/admin/settings/voting', { method: 'PUT', body: { open: !open } });
-    toast(open ? d.closedToast : d.opened);
+  // "Open voting" means open now. A start time still in the future, or an end time already past,
+  // would keep voting shut even with the switch on, so those are cleared by the same click.
+  const waiting = voting.reason === 'not_started';
+  const ended = voting.reason === 'ended';
+  const startsLater = !!s.voting.opens_at && Date.parse(s.voting.opens_at) > Date.now();
+  const endedAlready = !!s.voting.closes_at && Date.parse(s.voting.closes_at) <= Date.now();
+
+  const openNow = () => run('voting', async () => {
+    const body: Record<string, unknown> = { open: true };
+    if (startsLater) body.opens_at = null;
+    if (endedAlready) body.closes_at = null;
+    await saveSettings('voting', body);
+    toast(startsLater || endedAlready ? d.openedNow : d.opened);
     reload();
   });
 
+  const closeNow = () => run('voting', async () => {
+    if (!(await confirm(d.confirmClose, { danger: true, confirmText: d.closeBtn }))) return;
+    await saveSettings('voting', { open: false });
+    toast(d.closedToast);
+    reload();
+  });
+
+  const switchOff = () => run('voting', async () => {
+    await saveSettings('voting', { open: false });
+    toast(d.closedToast);
+    reload();
+  });
+
+  const showWinners = !!s.display.show_winners;
+  const toggleWinners = () => run('winners', async () => {
+    await saveSettings('display', { show_winners: !showWinners });
+    toast(showWinners ? d.winnersHidden : d.winnersShown);
+  });
+
   const saveSchedule = (opens: string, closes: string) => run('schedule', async () => {
-    await api('/api/admin/settings/voting', { method: 'PUT', body: scheduleWindow(opens, closes) });
+    await saveSettings('voting', scheduleWindow(opens, closes));
     toast(opens || closes ? d.scheduleSaved : d.scheduleCleared); reload();
   });
 
@@ -206,9 +265,22 @@ export default function Dashboard() {
             <h2 className="voting-state"><i className="dot" />{state.title}</h2>
             <p className="muted">{state.detail}</p>
           </div>
-          {isAdmin && <button className={`btn btn-lg ${open ? 'btn-danger' : 'btn-go'}`} disabled={busy} aria-busy={pending === 'voting'} onClick={toggle}>
-            {pending === 'voting' ? d.updating : open ? d.closeBtn : d.openBtn}</button>}
+          {isAdmin && (
+            <div className="actions">
+              {waiting && <button type="button" className="btn btn-ghost" disabled={busy} onClick={switchOff}>{d.switchOff}</button>}
+              {voting.open
+                ? <button type="button" className="btn btn-lg btn-danger" disabled={busy} aria-busy={pending === 'voting'} onClick={closeNow}>{pending === 'voting' ? d.updating : d.closeBtn}</button>
+                : <button type="button" className="btn btn-lg btn-go" disabled={busy} aria-busy={pending === 'voting'} onClick={openNow}>{pending === 'voting' ? d.updating : waiting ? d.openNowBtn : ended ? d.reopenBtn : d.openBtn}</button>}
+            </div>
+          )}
         </div>
+        {isAdmin && !voting.open && !waiting && (
+          <div className="winners-row">
+            <p className="muted small">{showWinners ? d.winnersOn : d.winnersHint}</p>
+            <button type="button" className={`btn ${showWinners ? '' : 'btn-primary'}`} disabled={busy} aria-busy={pending === 'winners'} onClick={toggleWinners}>
+              {pending === 'winners' ? d.updating : showWinners ? d.hideWinners : d.showWinners}</button>
+          </div>
+        )}
         <form className="schedule" onSubmit={(e) => { e.preventDefault(); void saveSchedule(opensAt, closesAt); }}>
           <div className="schedule-label"><b>{d.schedule}</b><span>{d.scheduleSub}</span></div>
           <label className="field"><span>{d.opens}</span><input className="input" type="datetime-local" disabled={!isAdmin} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} /></label>
@@ -232,6 +304,7 @@ export default function Dashboard() {
         <Tile label={d.verified} value={stats ? stats.verified_visitors : '–'} />
         <Tile label={d.recent} value={stats ? stats.votes_last_5m : '–'} />
         <Tile label={d.onBallot} value={stats ? stats.exhibitors : '–'} />
+        <Tile label={d.blocked} value={stats ? stats.off_site_blocked : '–'} />
       </div>
 
       <div className="grid-2-1">
@@ -261,9 +334,10 @@ export default function Dashboard() {
           <div className="stack tight">
             <b>{d.votePage}</b>
             <code className="url" dir="ltr">{links.voteUrl}</code>
+            {isLocalAddress(links.voteUrl) && <p className="share-warn" role="note">{d.localWarn} <Link to="/admin/settings/event">{d.localFix}</Link></p>}
             <div className="actions">
               <button className="btn btn-sm" onClick={() => copy(links.voteUrl, d.voteLink)}>{d.copyLink}</button>
-              <a className="btn btn-sm" href={links.voteUrl} target="_blank" rel="noopener">{d.openPage}</a>
+              <a className="btn btn-sm" href="/" target="_blank" rel="noopener" title={d.openPageHint}>{d.openPage}</a>
             </div>
           </div>
           {links.displayUrl && (

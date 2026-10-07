@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { DataSource } from 'typeorm';
 import { config } from './config/config';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
+import { AuditService } from './core/audit.service';
 import { hashPassword } from './common/crypto.util';
 import { runMigrationsLocked } from './database/migrate';
 import { SettingsService } from './settings/settings.service';
@@ -33,7 +34,7 @@ export function configureApp(app: NestExpressApplication, trustProxy: string | n
   app.use(cookieParser());
   app.useBodyParser('json', { limit: '50kb' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalFilters(new AllExceptionsFilter(app.get(AuditService)));
   app.enableShutdownHooks();
   return app;
 }

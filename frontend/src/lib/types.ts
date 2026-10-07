@@ -23,6 +23,7 @@ export interface ResultsSnapshot {
   event: { name: string; tagline: string };
   voting: VotingState;
   show_counts: boolean;
+  show_winners: boolean;
   generated_at: string;
   totals: { votes: number; voters: number };
   categories: CategoryResult[];
@@ -33,8 +34,8 @@ export interface AdminUser { id: number; username: string; role: AdminRole; totp
 export interface AdminCategory extends Category { is_active: boolean; exhibitor_count: number }
 export interface AdminExhibitor extends Exhibitor { is_active: boolean; votes: number; image_id: string | null }
 export interface Settings {
-  event: { name: string; tagline: string; venue: string };
+  event: { name: string; tagline: string; venue: string; public_url?: string };
   voting: { open: boolean; opens_at: string | null; closes_at: string | null };
   access: { mode: string; allowed_cidrs: string[]; geofence: { lat: number | null; lng: number | null; radius_m: number | null; max_accuracy_m: number | null } };
-  display: { key: string | null; show_counts: boolean };
+  display: { key: string | null; show_counts: boolean; show_winners?: boolean };
 }

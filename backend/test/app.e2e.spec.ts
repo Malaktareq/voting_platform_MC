@@ -86,6 +86,74 @@ beforeAll(async () => {
 
 afterAll(async () => { await app.close(); });
 
+describe('atomic reopening and visitor pagination', () => {
+  it.each(['display', 'audit'])('rolls back reopening when the %s write fails', async failure => {
+    const cookie = await adminCookie();
+    const previous = await settings.getAll(true);
+    try {
+      await settings.updateMany({ voting: { open: false, opens_at: null, closes_at: null }, display: { show_winners: true } });
+      const before = await settings.getAll(true);
+      const [{ count }] = await ds.query('SELECT COUNT(*)::int AS count FROM audit_log');
+      if (failure === 'display') {
+        await ds.query(`CREATE FUNCTION fail_reopen() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN IF NEW.key = 'display' THEN RAISE EXCEPTION 'Injected display failure'; END IF; RETURN NEW; END; $$`);
+        await ds.query('CREATE TRIGGER fail_reopen BEFORE UPDATE ON settings FOR EACH ROW EXECUTE FUNCTION fail_reopen()');
+      } else {
+        await ds.query(`CREATE FUNCTION fail_reopen() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN IF NEW.action = 'settings_updated' AND NEW.detail->>'key' = 'display'
+          THEN RAISE EXCEPTION 'Injected display audit failure'; END IF; RETURN NEW; END; $$`);
+        await ds.query('CREATE TRIGGER fail_reopen BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION fail_reopen()');
+      }
+      expect((await put('/api/admin/settings/voting', { open: true }, { cookie })).status).toBe(500);
+      const after = await settings.getAll(true);
+      expect(after.voting).toEqual(before.voting);
+      expect(after.display).toEqual(before.display);
+      expect((await ds.query('SELECT COUNT(*)::int AS count FROM audit_log'))[0].count).toBe(count);
+    } finally {
+      await ds.query('DROP TRIGGER IF EXISTS fail_reopen ON settings');
+      await ds.query('DROP TRIGGER IF EXISTS fail_reopen ON audit_log');
+      await ds.query('DROP FUNCTION IF EXISTS fail_reopen()');
+      await settings.updateMany({ voting: previous.voting, display: previous.display });
+    }
+  });
+
+  it('commits reopening, hiding winners and both audit entries together', async () => {
+    const cookie = await adminCookie();
+    const previous = await settings.getAll(true);
+    try {
+      await settings.updateMany({ voting: { open: false, opens_at: null, closes_at: null }, display: { show_winners: true } });
+      const [{ id }] = await ds.query('SELECT COALESCE(MAX(id), 0) AS id FROM audit_log');
+      expect((await put('/api/admin/settings/voting', { open: true }, { cookie })).status).toBe(200);
+      const saved = await settings.getAll(true);
+      expect(saved.voting.open).toBe(true);
+      expect(saved.display.show_winners).toBe(false);
+      const audit = await ds.query("SELECT detail->>'key' AS key FROM audit_log WHERE id > $1 AND action = 'settings_updated' ORDER BY id", [id]);
+      expect(audit.map((row: any) => row.key)).toEqual(['voting', 'display']);
+    } finally { await settings.updateMany({ voting: previous.voting, display: previous.display }); }
+  });
+
+  it('validates pagination and retains the total beyond the last page', async () => {
+    const cookie = await adminCookie();
+    await verifiedVisitor();
+    for (const query of ['limit=-1', 'limit=0', 'limit=1.5', 'limit=Infinity', 'limit=no', 'limit=',
+      'offset=-1', 'offset=1.5', 'offset=Infinity', 'offset=no', 'offset=', 'offset=9007199254740992', 'limit=1&limit=2']) {
+      const response = await get(`/api/admin/visitors?${query}`, { cookie });
+      expect(response.status).toBe(400);
+      expect(response.data.error).toBe('bad_pagination');
+    }
+    const [{ total }] = await ds.query('SELECT COUNT(*)::int AS total FROM visitors WHERE verified_at IS NOT NULL');
+    expect(total).toBeGreaterThan(0);
+    const empty = await get(`/api/admin/visitors?limit=50&offset=${total + 100}`, { cookie });
+    expect(empty.status).toBe(200);
+    expect(empty.data).toEqual({ total, visitors: [] });
+    const defaults = await get('/api/admin/visitors', { cookie });
+    expect(defaults.status).toBe(200);
+    expect(defaults.data.total).toBe(total);
+    expect(defaults.data.visitors.length).toBeLessThanOrEqual(50);
+    expect((await get('/api/admin/visitors?limit=999&offset=0', { cookie })).status).toBe(200);
+  });
+});
+
 describe('OTP lifecycle', () => {
   const pause = () => new Promise((resolve) => setTimeout(resolve, 1100));
 

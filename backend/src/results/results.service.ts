@@ -11,6 +11,7 @@ export interface ResultsSnapshot {
   event: { name: string; tagline: string };
   voting: VotingState;
   show_counts: boolean;
+  show_winners: boolean;
   generated_at: string;
   totals: { votes: number; voters: number };
   categories: CategoryResult[];
@@ -104,6 +105,7 @@ export class ResultsService implements OnModuleDestroy {
       event: { name: st.event.name, tagline: st.event.tagline },
       voting: this.settings.votingState(st),
       show_counts: st.display.show_counts !== false,
+      show_winners: st.display.show_winners === true,
       generated_at: new Date().toISOString(),
       totals: totals[0],
       categories: [...byCat.values()],

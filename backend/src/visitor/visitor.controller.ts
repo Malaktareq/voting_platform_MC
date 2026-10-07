@@ -3,12 +3,13 @@ import type { Request, Response } from 'express';
 import { config } from '../config/config';
 import { AppError } from '../common/http-error';
 import { ClientIp, VisitorId } from '../auth/decorators';
-import { VisitorGuard } from '../auth/guards';
+import { AdminLoader, VisitorGuard } from '../auth/guards';
 import { SessionService } from '../auth/session.service';
 import { RateLimitService } from '../core/rate-limit.service';
 import { AccessCheckDto, CastVoteDto, RequestOtpDto, VerifyOtpDto, VoteQrEntryDto } from './visitor.dto';
 import { VisitorService } from './visitor.service';
 import { VoteQrService } from '../core/vote-qr.service';
+import { AuditService } from '../core/audit.service';
 
 @Controller('api/public')
 export class VisitorController {
@@ -17,6 +18,8 @@ export class VisitorController {
     private readonly sessions: SessionService,
     private readonly limits: RateLimitService,
     private readonly voteQr: VoteQrService,
+    private readonly admins: AdminLoader,
+    private readonly audit: AuditService,
   ) {}
 
   /** Everything the visitor page needs in one round trip. */
@@ -24,11 +27,10 @@ export class VisitorController {
   @Header('Cache-Control', 'no-store')
   async state(@Req() req: Request, @ClientIp() ip: string) {
     const tok = this.sessions.read(req, 'mc_v', 'visitor');
-    const entry = this.sessions.read(req, 'mc_q', 'vote_entry');
     return {
       ...(await this.svc.state(ip, tok ? String(tok.sub) : null)),
       qrEntryRequired: config.voteQr.entryRequired,
-      qrEntryAllowed: !!entry && entry.ip === this.voteQr.ipBinding(ip),
+      qrEntryAllowed: await this.hasEntry(req, ip),
     };
   }
 
@@ -37,7 +39,13 @@ export class VisitorController {
   @HttpCode(200)
   async accessCheck(@ClientIp() ip: string, @Body() body: AccessCheckDto) {
     await this.limits.checkIp('access', ip, 60, 6000, 60);
-    return this.svc.accessCheck(ip, VisitorService.loc(body.location));
+    const result = await this.svc.accessCheck(ip, VisitorService.loc(body.location));
+    if (!result.allowed && !result.needsLocation) {
+      await this.audit.record('visitor', 'off_site_blocked', {
+        route: '/api/public/access-check', mode: result.mode, reason: result.geoReason,
+      }, ip);
+    }
+    return result;
   }
 
   /** Exchange a rotating QR code for a short-lived, IP-bound browser grant. */
@@ -55,7 +63,7 @@ export class VisitorController {
   @Post('otp/request')
   @HttpCode(200)
   async requestOtp(@ClientIp() ip: string, @Req() req: Request, @Body() body: RequestOtpDto) {
-    this.requireVoteQr(req, ip);
+    await this.requireVoteQr(req, ip);
     await this.limits.checkIp('otp-ip', ip, 20, 5000, 600); // venue Wi-Fi NAT gets a large budget
     return this.svc.requestOtp(ip, body);
   }
@@ -63,7 +71,7 @@ export class VisitorController {
   @Post('otp/verify')
   @HttpCode(200)
   async verifyOtp(@ClientIp() ip: string, @Req() req: Request, @Body() body: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
-    this.requireVoteQr(req, ip);
+    await this.requireVoteQr(req, ip);
     await this.limits.checkIp('otp-verify-ip', ip, 60, 10000, 600);
     const visitorId = await this.svc.verifyOtp(body.challengeId, body.code);
     this.sessions.set(res, 'mc_v', { sub: visitorId, typ: 'visitor' }, config.sessions.visitorTtl);
@@ -95,10 +103,16 @@ export class VisitorController {
     return { ok: true };
   }
 
-  private requireVoteQr(req: Request, ip: string) {
-    if (!config.voteQr.entryRequired) return;
+  /** A venue-QR scan from this device, or a signed-in admin (staff test the visitor flow on their own computer). */
+  private async hasEntry(req: Request, ip: string) {
+    if (!config.voteQr.entryRequired) return true;
     const grant = this.sessions.read(req, 'mc_q', 'vote_entry');
-    if (!grant || grant.ip !== this.voteQr.ipBinding(ip)) {
+    if (grant && grant.ip === this.voteQr.ipBinding(ip)) return true;
+    return !!(await this.admins.load(req));
+  }
+
+  private async requireVoteQr(req: Request, ip: string) {
+    if (!(await this.hasEntry(req, ip))) {
       throw new AppError(403, 'vote_qr_required', 'Scan the current voting QR code on the venue screen before requesting a code.');
     }
   }

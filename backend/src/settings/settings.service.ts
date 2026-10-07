@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { AppError } from '../common/http-error';
+import { config } from '../config/config';
 import { BusService } from '../redis/bus.service';
 import { AllSettings, SettingsKey, VotingState } from './settings.types';
 
@@ -10,7 +11,7 @@ import { AllSettings, SettingsKey, VotingState } from './settings.types';
  * source of truth and admins change everything from the admin console.
  */
 export const DEFAULT_SETTINGS: AllSettings = {
-  event: { name: 'MC2026 Community Awards', tagline: 'Vote for your favourite makers', venue: '' },
+  event: { name: 'MC2026 Community Awards', tagline: 'Vote for your favourite makers', venue: '', public_url: '' },
   // Event times remain unset until supplied in Asia/Amman, then stored as ISO instants.
   voting: { open: false, opens_at: null, closes_at: null },
   access: {
@@ -19,7 +20,8 @@ export const DEFAULT_SETTINGS: AllSettings = {
     // Unknown venue values are placeholders, not attendance checks for a real venue.
     geofence: { lat: null, lng: null, radius_m: null, max_accuracy_m: null },
   },
-  display: { key: null, show_counts: true },
+  // show_winners: the results screen announces winners (set by the admin after closing voting)
+  display: { key: null, show_counts: true, show_winners: false },
 };
 
 @Injectable()
@@ -53,26 +55,46 @@ export class SettingsService {
 
   async update<K extends SettingsKey>(key: K, patch: Partial<AllSettings[K]>,
     audit?: (manager: EntityManager) => Promise<void>): Promise<AllSettings[K]> {
-    if (!(key in DEFAULT_SETTINGS)) throw new Error(`unknown settings key ${key}`);
-    const next = await this.ds.transaction(async manager => {
-      // Lock even when a default row is absent; concurrent patches must merge with the latest row.
-      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`settings:${key}`]);
-      const rows = await manager.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
-      const next = { ...DEFAULT_SETTINGS[key], ...rows[0]?.value, ...patch };
-      if (key === 'voting' && next.opens_at && next.closes_at && Date.parse(next.closes_at) <= Date.parse(next.opens_at)) {
-        throw new AppError(400, 'bad_voting_window', 'Voting end must be after voting start.');
+    const values = await this.updateMany({ [key]: patch }, audit);
+    return values[key]!;
+  }
+
+  async updateMany(patches: { [K in SettingsKey]?: Partial<AllSettings[K]> },
+    audit?: (manager: EntityManager) => Promise<void>): Promise<Partial<AllSettings>> {
+    for (const key of Object.keys(patches)) {
+      if (!(key in DEFAULT_SETTINGS)) throw new Error(`unknown settings key ${key}`);
+    }
+    // Voting precedes display, matching reset's row-lock order.
+    const keys = (Object.keys(DEFAULT_SETTINGS) as SettingsKey[]).filter(key => patches[key] !== undefined);
+    const values = await this.ds.transaction(async manager => {
+      const values: Partial<AllSettings> = {};
+      for (const key of keys) {
+        // Lock even when a default row is absent; concurrent patches merge with the latest row.
+        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`settings:${key}`]);
+        const rows = await manager.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
+        const next = { ...DEFAULT_SETTINGS[key], ...rows[0]?.value, ...patches[key] };
+        if (key === 'voting' && next.opens_at && next.closes_at && Date.parse(next.closes_at) <= Date.parse(next.opens_at)) {
+          throw new AppError(400, 'bad_voting_window', 'Voting end must be after voting start.');
+        }
+        await manager.query(
+          `INSERT INTO settings(key, value, updated_at) VALUES ($1, $2, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+          [key, next],
+        );
+        Object.assign(values, { [key]: next });
       }
-      await manager.query(
-        `INSERT INTO settings(key, value, updated_at) VALUES ($1, $2, now())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-        [key, next],
-      );
       if (audit) await audit(manager);
-      return next;
+      return values;
     });
     this.cache = null;
-    await this.bus.publish('settings', { key });
-    return next;
+    for (const key of keys) await this.bus.publish('settings', { key });
+    return values;
+  }
+
+  /** Address visitors' phones open (QR code, shared links): the admin's setting, else PUBLIC_URL. No trailing slash. */
+  async publicBase(): Promise<string> {
+    const s = await this.getAll();
+    return (s.event.public_url || config.publicUrl).replace(/\/+$/, '');
   }
 
   votingState(s: AllSettings): VotingState {

@@ -39,6 +39,9 @@ export class ReportsService {
       // Close voting atomically with deletion; failures restore both settings and votes.
       await manager.query(`UPDATE settings SET value = value || '{"open":false}'::jsonb,
         updated_at = now() WHERE key = 'voting'`);
+      // No votes left, so nothing to announce on the results screen.
+      await manager.query(`UPDATE settings SET value = value || '{"show_winners":false}'::jsonb,
+        updated_at = now() WHERE key = 'display'`);
       const before = await this.results.snapshotForReset(manager);
       const res = await manager.query('DELETE FROM votes');
       const count = Array.isArray(res) ? res[1] : 0;
@@ -57,17 +60,30 @@ export class ReportsService {
     return { ok: true, deleted, votingClosed: true };
   }
 
-  async visitors(limitRaw: number, offsetRaw: number) {
-    const limit = Math.min(Number(limitRaw) || 50, 200);
-    const offset = Math.max(Number(offsetRaw) || 0, 0);
-    const rows = await this.ds.query(`
+  async visitors(limitRaw?: string | number, offsetRaw?: string | number) {
+    const integer = (raw: string | number | undefined, fallback: number, minimum: number) => {
+      if (raw === undefined) return fallback;
+      if ((typeof raw !== 'string' && typeof raw !== 'number') ||
+          (typeof raw === 'string' && !/^\d+$/.test(raw)) || !Number.isSafeInteger(Number(raw)) || Number(raw) < minimum) {
+        throw new AppError(400, 'bad_pagination', 'Pagination must use a positive integer limit and a nonnegative integer offset.');
+      }
+      return Number(raw);
+    };
+    const limit = Math.min(integer(limitRaw, 50, 1), 200);
+    const offset = integer(offsetRaw, 0, 0);
+    // The count and page share a snapshot; empty pages still retain the true total.
+    const { rows, total } = await this.ds.transaction('REPEATABLE READ', async manager => {
+      const [{ total }] = await manager.query('SELECT COUNT(*)::int AS total FROM visitors WHERE verified_at IS NOT NULL');
+      const rows = await manager.query(`
       SELECT v.id, v.name_enc, v.phone_last4, v.verified_at, v.consent_outreach,
-             COUNT(vt.id)::int AS votes, COUNT(*) OVER()::int AS total
+             COUNT(vt.id)::int AS votes
         FROM visitors v LEFT JOIN votes vt ON vt.visitor_id = v.id
        WHERE v.verified_at IS NOT NULL
-       GROUP BY v.id ORDER BY v.created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]);
+       GROUP BY v.id ORDER BY v.created_at DESC, v.id DESC LIMIT $1 OFFSET $2`, [limit, offset]);
+      return { rows, total };
+    });
     return {
-      total: rows[0] ? rows[0].total : 0,
+      total,
       visitors: rows.map((v: any) => ({
         id: v.id, name: decrypt(v.name_enc), phone: `•••• ${v.phone_last4}`,
         verified_at: v.verified_at, consent_outreach: v.consent_outreach, votes: v.votes,
@@ -94,7 +110,8 @@ export class ReportsService {
              (SELECT COUNT(*) FROM votes)::int AS votes,
              (SELECT COUNT(*) FROM votes WHERE created_at > now() - interval '5 minutes')::int AS votes_last_5m,
              (SELECT COUNT(*) FROM otp_challenges WHERE created_at > now() - interval '1 hour')::int AS otps_last_hour,
-             (SELECT COUNT(*) FROM exhibitors WHERE is_active)::int AS exhibitors`);
+             (SELECT COUNT(*) FROM exhibitors WHERE is_active)::int AS exhibitors,
+             (SELECT COUNT(*) FROM audit_log WHERE action = 'off_site_blocked')::int AS off_site_blocked`);
     return { ...rows[0], redis: this.bus.status(), live_screens_this_node: this.results.clientCount };
   }
 

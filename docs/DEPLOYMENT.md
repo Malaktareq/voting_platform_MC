@@ -79,6 +79,8 @@ All event-level settings (categories, exhibitors, voting window, IP ranges, geof
 
 ### Local event server (phones on the same Wi-Fi)
 
+**First, tell the QR code where to send phones.** The QR on the results screen opens an address, and `localhost` means "the phone itself" on a phone. In **Admin › Settings › Event & screen**, set **Voting page address** to this computer's Wi-Fi address, e.g. `http://192.168.1.20:3000` (run `ipconfig` and use the Wi-Fi IPv4 address). It is stored in the database, so it can be changed at the venue without restarting anything; the Dashboard warns while it still points to localhost. When left empty, `PUBLIC_URL` from `.env` is used.
+
 The prototype can run entirely on one computer at the venue; voting keeps working if the internet drops (only SMS delivery needs it). Two things need care on a local server:
 
 - **Phones only share GPS with HTTPS pages.**
