@@ -1,9 +1,7 @@
 import { Body, Controller, Get, Header, HttpCode, Post, Req, Res, Sse, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import * as QRCode from 'qrcode';
 import { IsString, MaxLength } from 'class-validator';
 import { concatMap, Observable } from 'rxjs';
-import { config } from '../config/config';
 import { safeEqual } from '../common/crypto.util';
 import { AppError } from '../common/http-error';
 import { ClientIp } from '../auth/decorators';
@@ -11,6 +9,7 @@ import { DisplayOrAdminGuard } from '../auth/guards';
 import { SessionService } from '../auth/session.service';
 import { AuditService } from '../core/audit.service';
 import { RateLimitService } from '../core/rate-limit.service';
+import { VoteQrService } from '../core/vote-qr.service';
 import { ResultsService } from '../results/results.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -26,6 +25,7 @@ export class DisplayController {
     private readonly audit: AuditService,
     private readonly limits: RateLimitService,
     private readonly displayGuard: DisplayOrAdminGuard,
+    private readonly voteQr: VoteQrService,
   ) {}
 
   /** Exchange the key (from the admin's link) for a 7-day cookie bound to that key. */
@@ -60,11 +60,12 @@ export class DisplayController {
   @Header('Cache-Control', 'no-store')
   snapshot() { return this.results.snapshot(); }
 
-  /** QR the dashboard shows so passers-by can scan and vote. */
+  /**
+   * Rotating venue QR for the results screen. Only an unlocked screen or a signed-in admin
+   * gets it, so a valid code can't be fetched from outside the venue.
+   */
   @Get('qr')
   @UseGuards(DisplayOrAdminGuard)
-  async qr() {
-    const url = `${config.publicUrl.replace(/\/$/, '')}/`;
-    return { url, qr: await QRCode.toDataURL(url, { margin: 1, width: 360, color: { dark: '#14123B', light: '#FFFFFF' } }) };
-  }
+  @Header('Cache-Control', 'no-store')
+  async qr() { return this.voteQr.entryQr(await this.settings.publicBase(), 360); }
 }

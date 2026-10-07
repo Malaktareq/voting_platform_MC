@@ -14,7 +14,6 @@ import NotFound from '../NotFound';
 const Exhibitors = lazy(() => import('./views/Exhibitors'));
 const Categories = lazy(() => import('./views/Categories'));
 const Results = lazy(() => import('./views/Results'));
-const LiveData = lazy(() => import('./views/LiveData'));
 const Visitors = lazy(() => import('./views/Visitors'));
 const Settings = lazy(() => import('./views/Settings'));
 
@@ -105,7 +104,6 @@ function Shell({ showMfaTip }: { showMfaTip: boolean }) {
             <Route path="exhibitors" element={<Exhibitors />} />
             <Route path="categories" element={<Categories />} />
             <Route path="results" element={<Results />} />
-            <Route path="live-data" element={<LiveData />} />
             {isAdmin && <Route path="visitors" element={<Visitors />} />}
             <Route path="settings/*" element={<Settings />} />
             {MOVED.map(([from, to]) => <Route key={from} path={from} element={<Navigate to={`/admin/${to}`} replace />} />)}

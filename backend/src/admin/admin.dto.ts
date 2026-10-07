@@ -37,6 +37,7 @@ export class EventSettingsDto {
   @IsString() @Matches(/\S/, { message: 'Name cannot be blank.' }) @MaxLength(80) name: string;
   @IsOptional() @IsString() @MaxLength(120) tagline?: string;
   @IsOptional() @IsString() @MaxLength(120) venue?: string;
+  @IsOptional() @IsString() @MaxLength(200) public_url?: string;
 }
 export class VotingSettingsDto {
   @IsOptional() @IsBoolean() open?: boolean;
@@ -54,7 +55,10 @@ export class AccessSettingsDto {
   @IsOptional() @IsArray() @IsString({ each: true }) allowed_cidrs?: string[];
   @IsOptional() @ValidateNested() @Type(() => GeofenceDto) geofence?: GeofenceDto;
 }
-export class DisplaySettingsDto { @IsOptional() @IsBoolean() show_counts?: boolean }
+export class DisplaySettingsDto {
+  @IsOptional() @IsBoolean() show_counts?: boolean;
+  @IsOptional() @IsBoolean() show_winners?: boolean;
+}
 
 export class ResetDto {
   @IsString() confirm: string;

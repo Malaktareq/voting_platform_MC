@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { useLang } from '../i18n';
 import { LoadError, PageHead, Spinner, useLoad } from '../ui';
@@ -11,9 +11,15 @@ export default function Visitors() {
   const { t } = useLang();
   const v = t.visitors;
   const [offset, setOffset] = useState(0);
-  const { data, error } = useLoad(() => api<{ total: number; visitors: Row[] }>(`/api/admin/visitors?limit=${LIMIT}&offset=${offset}`), [offset]);
+  const { data, error } = useLoad(async () => ({
+    ...await api<{ total: number; visitors: Row[] }>(`/api/admin/visitors?limit=${LIMIT}&offset=${offset}`), offset,
+  }), [offset]);
+  useEffect(() => {
+    if (!data || data.offset !== offset || offset === 0 || offset < data.total) return;
+    setOffset(Math.max(0, Math.floor((data.total - 1) / LIMIT) * LIMIT));
+  }, [data, offset]);
   if (error) return <LoadError error={error} />;
-  if (!data) return <Spinner />;
+  if (!data || data.offset !== offset) return <Spinner />;
   return (
     <div>
       <PageHead title={v.title} sub={v.sub}>

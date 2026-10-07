@@ -1,14 +1,15 @@
 export type AccessMode = 'off' | 'ip' | 'geo' | 'ip_or_geo' | 'ip_and_geo';
 export const ACCESS_MODES: AccessMode[] = ['off', 'ip', 'geo', 'ip_or_geo', 'ip_and_geo'];
 
-export interface EventSettings { name: string; tagline: string; venue: string }
+/** public_url: the address the venue QR code opens on visitors' phones (empty = the PUBLIC_URL environment value). */
+export interface EventSettings { name: string; tagline: string; venue: string; public_url: string }
 export interface VotingSettings { open: boolean; opens_at: string | null; closes_at: string | null }
 export interface AccessSettings {
   mode: AccessMode;
   allowed_cidrs: string[];
   geofence: { lat: number | null; lng: number | null; radius_m: number | null; max_accuracy_m: number | null };
 }
-export interface DisplaySettings { key: string | null; show_counts: boolean }
+export interface DisplaySettings { key: string | null; show_counts: boolean; show_winners: boolean }
 
 export interface AllSettings {
   event: EventSettings;

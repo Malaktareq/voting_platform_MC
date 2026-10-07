@@ -30,7 +30,7 @@ function ArrowIcon() {
 export function RegisterScreen({ form, setForm, setChallenge }: {
   form: FormState; setForm: (f: FormState) => void; setChallenge: (c: Challenge) => void;
 }) {
-  const { t, location, setOnSite, setLocation, reload, data } = useVote();
+  const { t, location, setOnSite, setLocation, requireQr, reload } = useVote();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -58,6 +58,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
       const e2 = ex as ApiError;
       if (e2.code === 'not_on_site') { setOnSite(false); setLocation(null); return; }
       if (e2.code === 'voting_closed') { await reload(); return; }
+      if (e2.code === 'vote_qr_required' || e2.code === 'vote_qr_expired') { requireQr(); await reload(); return; }
       setErr(e2.message);
     } finally {
       submitting.current = false;
@@ -94,7 +95,6 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
           <br />
           <em>favourite makers</em>
         </h1>
-        {data.qrEntryRequired && !data.qrEntryAllowed && <p className="qr-required" role="note">{t('qrRequired')}</p>}
         <span className="title-rule" aria-hidden="true" />
         <label className="login-design-field" htmlFor="f-name">
           <span className="sr-only">{t('name')}</span>
@@ -122,7 +122,7 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
 export function OtpScreen({ challenge, setChallenge, form }: {
   challenge: Challenge; setChallenge: (c: Challenge | null) => void; form: FormState;
 }) {
-  const { t, location, setSession } = useVote();
+  const { t, location, setSession, requireQr, reload } = useVote();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -145,7 +145,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       window.scrollTo({ top: 0 });
     } catch (ex) {
       const e2 = ex as ApiError;
-      setErr(e2.message);
+      if (e2.code?.startsWith('vote_qr')) { requireQr(); await reload(); return; }
+      setErr(e2.code?.startsWith('vote_qr') ? t('qrRequired') : e2.message);
       if (['otp_expired', 'otp_locked', 'otp_invalid'].includes(e2.code || '')) setCode('');
       inputRef.current?.select();
     } finally {
@@ -169,7 +170,8 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       setChallenge(toChallenge(r));
       setCode('');
     } catch (ex) {
-      setErr((ex as Error).message);
+      if ((ex as ApiError).code?.startsWith('vote_qr')) { requireQr(); await reload(); return; }
+      setErr((ex as ApiError).code?.startsWith('vote_qr') ? t('qrRequired') : (ex as Error).message);
     } finally {
       submitting.current = false; setBusy(false);
     }

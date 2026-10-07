@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
-import * as QRCode from 'qrcode';
 import { isISO8601 } from 'class-validator';
-import { config } from '../config/config';
 import { buildBlockList, validGeofence } from '../common/geo.util';
 import { AppError } from '../common/http-error';
 import { AuditService } from '../core/audit.service';
@@ -22,11 +20,25 @@ export class EventService {
   }
 
   async updateEvent(actor: string, ip: string, b: EventSettingsDto) {
-    return this.save(actor, ip, 'event', {
+    const patch: Partial<AllSettings['event']> = {
       name: String(b.name || '').trim().slice(0, 80) || 'MC2026 Community Awards',
       tagline: String(b.tagline || '').trim(),
       venue: String(b.venue || '').trim(),
-    });
+    };
+    if (b.public_url !== undefined) patch.public_url = EventService.publicUrl(b.public_url);
+    return this.save(actor, ip, 'event', patch);
+  }
+
+  /** "192.168.1.20:3000" or "http://192.168.1.20:3000/x" → "http://192.168.1.20:3000"; empty clears the setting. */
+  static publicUrl(raw: string): string {
+    const text = String(raw || '').trim();
+    if (!text) return '';
+    let url: URL;
+    try { url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `http://${text}`); } catch { url = null as unknown as URL; }
+    if (!url || !['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+      throw new AppError(400, 'bad_url', 'Enter the address visitors open, for example http://192.168.1.20:3000');
+    }
+    return `${url.protocol}//${url.host}`;
   }
 
   async updateVoting(actor: string, ip: string, b: VotingSettingsDto) {
@@ -44,7 +56,14 @@ export class EventService {
     if (b.open !== undefined) patch.open = !!b.open;
     if (b.opens_at !== undefined) patch.opens_at = iso(b.opens_at);
     if (b.closes_at !== undefined) patch.closes_at = iso(b.closes_at);
-    return this.save(actor, ip, 'voting', patch);
+    if (patch.open !== true) return this.save(actor, ip, 'voting', patch);
+    // Reopening and hiding the announcement either commit together or both roll back.
+    const display = { show_winners: false };
+    const saved = await this.settings.updateMany({ voting: patch, display }, async manager => {
+      await this.audit.record(actor, 'settings_updated', { key: 'voting', patch }, ip, manager);
+      await this.audit.record(actor, 'settings_updated', { key: 'display', patch: display }, ip, manager);
+    });
+    return { ok: true, value: saved.voting };
   }
 
   async updateAccess(actor: string, ip: string, b: AccessSettingsDto) {
@@ -68,7 +87,10 @@ export class EventService {
   }
 
   async updateDisplay(actor: string, ip: string, b: DisplaySettingsDto) {
-    return this.save(actor, ip, 'display', b.show_counts !== undefined ? { show_counts: !!b.show_counts } : {});
+    const patch: Partial<AllSettings['display']> = {};
+    if (b.show_counts !== undefined) patch.show_counts = !!b.show_counts;
+    if (b.show_winners !== undefined) patch.show_winners = !!b.show_winners;
+    return this.save(actor, ip, 'display', patch);
   }
 
   async rotateDisplayKey(actor: string, ip: string) {
@@ -79,15 +101,14 @@ export class EventService {
 
   async links(isAdmin: boolean) {
     const s = await this.settings.getAll(true);
-    const base = config.publicUrl.replace(/\/$/, '');
-    const qr = this.voteQr.issue();
-    const voteUrl = `${base}/`;
-    const qrUrl = `${voteUrl}#entry=${encodeURIComponent(qr.token)}`;
+    const base = await this.settings.publicBase();
+    const qr = await this.voteQr.entryQr(base);
     return {
-      voteUrl,
+      voteUrl: `${base}/`,
       displayUrl: isAdmin ? `${base}/display?key=${encodeURIComponent(s.display.key || '')}` : null,
-      voteQr: await QRCode.toDataURL(qrUrl, { margin: 1, width: 480, errorCorrectionLevel: 'M' }),
+      voteQr: qr.qr,
       voteQrRefreshAt: qr.refreshAt,
+      voteQrRefreshIn: qr.refreshIn,
     };
   }
 

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
+import * as QRCode from 'qrcode';
 import { config } from '../config/config';
 import { safeEqual } from '../common/crypto.util';
 
@@ -12,6 +13,18 @@ export class VoteQrService {
     const bucket = Math.floor(now / this.periodMs);
     const signature = this.signBucket(bucket);
     return { token: `v1.${bucket}.${signature}`, refreshAt: (bucket + 1) * this.periodMs };
+  }
+
+  /** The venue-screen QR: the voting page address (`base`) carrying the current entry token. */
+  async entryQr(base: string, width = 480, now = Date.now()) {
+    const { token, refreshAt } = this.issue(now);
+    const url = `${base.replace(/\/+$/, '')}/#entry=${encodeURIComponent(token)}`;
+    return {
+      qr: await QRCode.toDataURL(url, { margin: 1, width, errorCorrectionLevel: 'M' }),
+      refreshAt,
+      // Relative wait, so screens with a wrong clock still refresh on time.
+      refreshIn: refreshAt - now,
+    };
   }
 
   isValid(token: string, now = Date.now()) {

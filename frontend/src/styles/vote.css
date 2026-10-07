@@ -793,6 +793,9 @@ body.vote.vote-login main {
 body.vote.vote-login .topbar { display: none; }
 body.vote .voter-login {
   --ink: #07177e;
+  /* The logo is pinned at the top; the card is centred in the space below it (logo ratio 974x256). */
+  --logo-w: min(420px, calc(100vw - 48px));
+  --login-top: calc(max(14px, env(safe-area-inset-top)) + var(--logo-w) * 0.2628 + 14px);
   isolation: isolate;
   position: relative;
   height: 100dvh;
@@ -800,7 +803,7 @@ body.vote .voter-login {
   min-height: 100dvh;
   overflow: hidden;
   padding:
-    max(12px, env(safe-area-inset-top))
+    var(--login-top)
     16px
     max(12px, env(safe-area-inset-bottom));
   display: grid;
@@ -855,7 +858,7 @@ body.vote .maker-brand {
   pointer-events: none;
 }
 body.vote .maker-brand img {
-  width: min(420px, calc(100vw - 48px));
+  width: var(--logo-w);
   height: auto;
   display: block;
   object-fit: contain;
@@ -1035,7 +1038,7 @@ body.vote .login-card {
   width: min(560px, calc(100vw - 32px));
   min-width: 0;
   min-height: 0;
-  max-height: calc(100dvh - 130px);
+  max-height: calc(100dvh - var(--login-top) - max(12px, env(safe-area-inset-bottom)));
   margin: 0 auto;
   padding: 42px 48px 32px;
   overflow: hidden auto;
@@ -1208,10 +1211,10 @@ body.vote .login-card .alert {
 
 /* Short screens (landscape phones, small heights): compact, still no page scroll */
 @media (max-height: 640px) {
+  body.vote .voter-login { --logo-w: min(260px, calc(100vw - 48px)); }
   body.vote .login-card {
     margin-top: 0;
     padding: 20px 18px 16px;
-    max-height: calc(100dvh - 80px);
   }
   body.vote .login-card h1 { margin-bottom: 14px; }
   body.vote .login-design-field { height: 52px; margin-bottom: 10px; }
@@ -1233,21 +1236,20 @@ body.vote .login-card .alert {
     overflow: visible;
   }
   body.vote .voter-login {
+    --logo-w: min(280px, calc(100vw - 36px));
+    --login-top: calc(max(12px, env(safe-area-inset-top)) + var(--logo-w) * 0.2628 + 14px);
     width: 100%;
     height: auto;
     max-height: none;
     min-height: 100dvh;
     overflow: hidden;
-    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    padding: var(--login-top) 12px max(12px, env(safe-area-inset-bottom));
     place-items: center;
   }
   body.vote .maker-brand {
     top: max(12px, env(safe-area-inset-top));
     left: 50%;
     transform: translateX(-50%);
-  }
-  body.vote .maker-brand img {
-    width: min(280px, calc(100vw - 36px));
   }
   body.vote .asset-purple-corner { top: -2%; left: -18%; width: 260px; }
   body.vote .asset-turquoise-circle { top: 28%; left: -5%; width: 86px; }
@@ -1379,10 +1381,9 @@ body.vote .login-card .alert {
 }
 
 @media (max-width: 380px) {
-  body.vote .maker-brand img { width: min(238px, calc(100vw - 32px)); }
+  body.vote .voter-login { --logo-w: min(238px, calc(100vw - 32px)); }
   body.vote .login-card {
     max-height: none;
-    margin-top: 38px;
     padding: 18px 14px 14px;
   }
   body.vote .login-card h1 { font-size: 25px; }
@@ -1577,16 +1578,4 @@ body.vote:not(.vote-login) .btn-vote:hover:not(:disabled) {
   body.vote:not(.vote-login) .card-body {
     padding: 10px 4px 4px;
   }
-}
-
-body.vote .qr-required {
-  margin: 0 0 14px;
-  padding: 11px 14px;
-  border: 1px solid rgba(138,90,0,.2);
-  border-radius: 12px;
-  background: #fff7dd;
-  color: #735000;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
 }
