@@ -35,8 +35,11 @@ export class CatalogService {
   private categoryInput(b: CategoryDto) {
     const name = String(b.name || '').trim();
     if (!name || name.length > 80) throw new AppError(400, 'bad_name', 'Category name is required (max 80 chars).');
+    if (b.sort_order !== undefined && (!Number.isInteger(b.sort_order) || b.sort_order! < 0 || b.sort_order! > 2147483647)) {
+      throw new AppError(400, 'bad_order', 'Display order must be a whole number between 0 and 2147483647.');
+    }
     const slug = String(b.slug || name).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `cat-${Date.now()}`;
-    return { name, slug, description: String(b.description || '').trim(), sort_order: Number.isInteger(b.sort_order) ? b.sort_order! : 0, is_active: b.is_active !== false };
+    return { name, slug, description: String(b.description || '').trim(), sort_order: b.sort_order === undefined ? 0 : b.sort_order, is_active: b.is_active !== false };
   }
 
   async createCategory(actor: string, ip: string, b: CategoryDto) {

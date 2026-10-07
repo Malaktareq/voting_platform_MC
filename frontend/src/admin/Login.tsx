@@ -46,7 +46,7 @@ export function Login({ onDone, initialMessage }: { onDone: (mfaSetupRecommended
           <form className="stack" onSubmit={submitCode}>
             <p className="muted">Enter the 6-digit code from your authenticator app.</p>
             <label className="field"><span>Authenticator code</span>
-              <input className="input otp-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus value={code} onChange={(e) => setCode(e.target.value)} /></label>
+              <input className="input otp-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
             {err && <p className="alert">{err}</p>}
             <button className="btn btn-primary btn-block" disabled={busy}>Verify</button>
             <button type="button" className="btn btn-link" onClick={() => { setStep('password'); setErr(null); }}>Back</button>
