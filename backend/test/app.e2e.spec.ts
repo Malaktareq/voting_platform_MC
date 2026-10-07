@@ -814,6 +814,8 @@ describe('admin', () => {
 
   it('reset deletes votes and keeps a snapshot in the audit log', async () => {
     const cookie = await adminCookie();
+    const previous = (await settings.getAll(true)).voting;
+    try {
     expect((await post('/api/admin/results/reset', { confirm: 'nope' }, { cookie })).status).toBe(400);
     const r = await post('/api/admin/results/reset', { confirm: 'RESET' }, { cookie });
     expect(r.status).toBe(200);
@@ -821,6 +823,8 @@ describe('admin', () => {
     const audit = await ds.query(`SELECT detail FROM audit_log WHERE action = 'results_reset' ORDER BY id DESC LIMIT 1`);
     expect(audit[0].detail.snapshot.categories.length).toBeGreaterThanOrEqual(2);
     expect((await ds.query('SELECT COUNT(*)::int AS n FROM votes'))[0].n).toBe(0);
+    expect((await settings.getAll(true)).voting.open).toBe(false);
+    } finally { await settings.update('voting', previous); }
   });
 });
 
@@ -936,7 +940,7 @@ describe('admin consistency fixes', () => {
     } finally { await ds.query('DELETE FROM categories WHERE id = ANY($1::int[])', [[one.data.category.id, id]]); }
   });
 
-  it('validates merged schedule ordering while preserving date-format compatibility', async () => {
+  it('validates merged schedule ordering and requires explicit timezone offsets', async () => {
     const cookie = await adminCookie();
     const previous = (await settings.getAll(true)).voting;
     const valid = { open: true, opens_at: '2026-10-20T09:00:00.000Z', closes_at: '2026-10-20T12:00:00.000Z' };
@@ -954,7 +958,7 @@ describe('admin consistency fixes', () => {
       }
       expect((await put('/api/admin/settings/voting', { opens_at: 'invalid-date' }, { cookie })).data.error).toBe('bad_date');
       expect((await put('/api/admin/settings/voting', { closes_at: null }, { cookie })).status).toBe(200);
-      expect((await put('/api/admin/settings/voting', { opens_at: '2026-10-20T09:00' }, { cookie })).status).toBe(200);
+      expect((await put('/api/admin/settings/voting', { opens_at: '2026-10-20T09:00' }, { cookie })).data.error).toBe('bad_date');
       expect((await put('/api/admin/settings/voting', { opens_at: null }, { cookie })).status).toBe(200);
     } finally { await settings.update('voting', previous); }
   });
@@ -979,6 +983,7 @@ describe('admin consistency fixes', () => {
 
   it('serializes a reset and a queued vote, preserving the exact deleted snapshot', async () => {
     const cookie = await adminCookie(), visitor = await verifiedVisitor();
+    const previous = (await settings.getAll(true)).voting;
     expect((await post('/api/public/votes', { categoryId: catA, exhibitorId: exA }, visitor)).status).toBe(201);
     const blocker = ds.createQueryRunner();
     await blocker.connect();
@@ -998,16 +1003,17 @@ describe('admin consistency fixes', () => {
       vote = post('/api/public/votes', { categoryId: catB, exhibitorId: exC }, visitor);
       await blocker.commitTransaction();
       expect((await reset).status).toBe(200);
-      expect((await vote).status).toBe(201);
+      expect((await vote).status).toBe(403);
       const audit = (await ds.query("SELECT detail FROM audit_log WHERE action = 'results_reset' ORDER BY id DESC LIMIT 1"))[0].detail;
       expect(audit.deleted_votes).toBe(1);
       expect(audit.snapshot.totals.votes).toBe(1);
-      expect((await ds.query('SELECT category_id FROM votes WHERE ip = $1', [visitor.ip])).map((r: { category_id: number }) => r.category_id)).toEqual([catB]);
+      expect((await ds.query('SELECT category_id FROM votes WHERE ip = $1', [visitor.ip])).map((r: { category_id: number }) => r.category_id)).toEqual([]);
     } finally {
       if (blocker.isTransactionActive) await blocker.rollbackTransaction();
       await blocker.release();
       await Promise.allSettled([reset, vote].filter(Boolean));
       await ds.query('DELETE FROM votes WHERE ip = $1', [visitor.ip]);
+      await settings.update('voting', previous);
     }
   });
 });

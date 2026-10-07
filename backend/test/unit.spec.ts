@@ -192,7 +192,7 @@ describe('location validation', () => {
     const g = { ...fence, max_accuracy_m: accuracy };
     expect(validateSync(plainToInstance(GeofenceDto, g))).toHaveLength(0);
     await service.updateAccess('admin', '127.0.0.1', { geofence: g });
-    expect(settings.update).toHaveBeenCalledWith('access', { geofence: { ...g, max_accuracy_m: accuracy === undefined ? 500 : accuracy } });
+    expect(settings.update).toHaveBeenCalledWith('access', { geofence: { ...g, max_accuracy_m: accuracy === undefined ? 500 : accuracy } }, expect.any(Function));
   });
 });
 
@@ -253,17 +253,23 @@ describe('three-category sample setup', () => {
       query: jest.fn().mockImplementation(async (sql: string) => sql.includes('AS categories') ? [existing] : []),
       transaction: jest.fn(), destroy: jest.fn().mockResolvedValue(undefined),
     };
+    ds.transaction.mockImplementation(async fn => fn({ query: ds.query }));
     jest.spyOn(DataSource.prototype, 'initialize').mockResolvedValue(ds as unknown as DataSource);
     jest.spyOn(migrations, 'runMigrationsLocked').mockResolvedValue(undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
     await seed();
-    expect(ds.transaction).not.toHaveBeenCalled();
+    expect(ds.transaction).toHaveBeenCalledTimes(1);
+    expect(ds.query.mock.calls.some(([sql]) => sql.includes('LOCK TABLE votes'))).toBe(true);
     expect(ds.query.mock.calls.some(([sql]) => /DELETE|UPDATE categories|INSERT INTO categories/i.test(sql))).toBe(false);
     expect(ds.destroy).toHaveBeenCalled();
   });
   it('seeds three active categories and all exhibitor assignments on an empty database', async () => {
     let nextId = 0;
-    const manager = { query: jest.fn().mockImplementation(async () => [{ id: ++nextId }]) };
+    const manager = { query: jest.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('AS categories')) return [{ categories: 0, exhibitors: 0, votes: 0 }];
+      if (sql.startsWith('INSERT INTO categories')) return [{ id: ++nextId }];
+      return [{ id: 100 }];
+    }) };
     const ds = {
       query: jest.fn().mockImplementation(async (sql: string) => sql.includes('AS categories') ? [{ categories: 0, exhibitors: 0, votes: 0 }] : []),
       transaction: jest.fn().mockImplementation(async (fn) => fn(manager)),

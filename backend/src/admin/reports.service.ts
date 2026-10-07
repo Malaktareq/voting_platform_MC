@@ -36,6 +36,9 @@ export class ReportsService {
     const deleted = await this.ds.transaction('REPEATABLE READ', async (manager) => {
       // Excludes vote writes until snapshot, deletion and audit have committed together.
       await manager.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');
+      // Close voting atomically with deletion; failures restore both settings and votes.
+      await manager.query(`UPDATE settings SET value = value || '{"open":false}'::jsonb,
+        updated_at = now() WHERE key = 'voting'`);
       const before = await this.results.snapshotForReset(manager);
       const res = await manager.query('DELETE FROM votes');
       const count = Array.isArray(res) ? res[1] : 0;
@@ -49,8 +52,9 @@ export class ReportsService {
       }
       return count;
     });
+    await this.bus.publish('settings', { key: 'voting' });
     await this.bus.publish('results-changed', {});
-    return { ok: true, deleted };
+    return { ok: true, deleted, votingClosed: true };
   }
 
   async visitors(limitRaw: number, offsetRaw: number) {

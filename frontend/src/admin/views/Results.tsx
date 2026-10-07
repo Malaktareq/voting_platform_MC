@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import type { ResultsSnapshot } from '../../lib/types';
 import { accent, fmtTime } from '../../lib/util';
 import { LoadError, Modal, PageHead, Spinner, useAdmin, useLoad } from '../ui';
+import { useAction } from '../useAction';
 
 export default function Results() {
   const { isAdmin } = useAdmin();
   const { data: snap, error, reload } = useLoad(() => api<ResultsSnapshot>('/api/admin/results'));
   const [resetting, setResetting] = useState(false);
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') reload(); }, 5000);
+    return () => window.clearInterval(timer);
+  }, [reload]);
   if (error) return <LoadError error={error} />;
   if (!snap) return <Spinner />;
 
@@ -52,20 +57,21 @@ function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const { toast } = useAdmin();
   const [typed, setTyped] = useState('');
   const [purge, setPurge] = useState(false);
+  const { busy, run } = useAction();
   return (
-    <Modal title="Reset results" onClose={onClose}>
+    <Modal title="Reset results" busy={busy} onClose={onClose}>
       <div className="stack">
-        <p>This permanently deletes every vote (e.g. after a rehearsal). A snapshot of the current counts is kept in the audit log. Export first if you need the data.</p>
+        <p>This closes voting and permanently deletes every vote (e.g. after a rehearsal). Voting stays closed until you reopen it. A snapshot of the current counts is kept in the audit log. Export first if you need the data.</p>
         <label className="check"><input type="checkbox" checked={purge} onChange={(e) => setPurge(e.target.checked)} /><span>Also delete all visitor registrations (names &amp; phone numbers)</span></label>
         <input className="input" placeholder="Type RESET" value={typed} onChange={(e) => setTyped(e.target.value)} />
         <div className="actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-danger" disabled={typed !== 'RESET'} onClick={async () => {
+          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="btn btn-danger" disabled={busy || typed !== 'RESET'} aria-busy={busy} onClick={() => run('reset', async () => {
             try {
               const r = await api<{ deleted: number }>('/api/admin/results/reset', { method: 'POST', body: { confirm: 'RESET', purgeVisitors: purge } });
-              toast(`Deleted ${r.deleted} votes`); onDone();
+              toast(`Voting closed. Deleted ${r.deleted} votes.`); onDone();
             } catch (ex) { toast((ex as Error).message, 'err'); }
-          }}>Delete all votes</button>
+          })}>{busy ? 'Deleting…' : 'Delete all votes'}</button>
         </div>
       </div>
     </Modal>

@@ -44,14 +44,17 @@ export async function prepareDatabase(app: INestApplication) {
   const ds = app.get(DataSource);
   await runMigrationsLocked(ds);
   await app.get(SettingsService).ensureDefaults();
-  const n = (await ds.query('SELECT COUNT(*)::int AS n FROM admins'))[0].n;
-  if (n === 0) {
-    const { username, password } = config.bootstrapAdmin;
-    if (!password) {
-      log.warn('No admin exists and ADMIN_PASSWORD is not set — create one with `npm run create-admin`');
-    } else {
-      await ds.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING', [username.toLowerCase(), await hashPassword(password)]);
-      log.log(`bootstrap admin "${username}" created`);
+  await ds.transaction(async manager => {
+    await manager.query('SELECT pg_advisory_xact_lock(20262027)');
+    const n = (await manager.query('SELECT COUNT(*)::int AS n FROM admins'))[0].n;
+    if (n === 0) {
+      const { username, password } = config.bootstrapAdmin;
+      if (!password) {
+        log.warn('No admin exists and ADMIN_PASSWORD is not set — create one with `npm run create-admin`');
+      } else {
+        await manager.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING', [username.toLowerCase(), await hashPassword(password)]);
+        log.log(`bootstrap admin "${username}" created`);
+      }
     }
-  }
+  });
 }

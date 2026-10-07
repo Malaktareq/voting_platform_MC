@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as QRCode from 'qrcode';
+import { isISO8601 } from 'class-validator';
 import { config } from '../config/config';
 import { buildBlockList, validGeofence } from '../common/geo.util';
 import { AppError } from '../common/http-error';
@@ -29,7 +30,11 @@ export class EventService {
 
   async updateVoting(actor: string, ip: string, b: VotingSettingsDto) {
     const iso = (v?: string | null) => {
-      if (!v) return null;
+      if (v === null) return null;
+      if (typeof v !== 'string' || !isISO8601(v, { strict: true, strictSeparator: true }) ||
+          !/T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v)) {
+        throw new AppError(400, 'bad_date', 'Schedule dates must be valid ISO timestamps with a timezone offset.');
+      }
       const d = new Date(v);
       if (Number.isNaN(d.getTime())) throw new AppError(400, 'bad_date', 'Invalid date.');
       return d.toISOString();
@@ -38,11 +43,6 @@ export class EventService {
     if (b.open !== undefined) patch.open = !!b.open;
     if (b.opens_at !== undefined) patch.opens_at = iso(b.opens_at);
     if (b.closes_at !== undefined) patch.closes_at = iso(b.closes_at);
-    const current = (await this.settings.getAll(true)).voting;
-    const next = { ...current, ...patch };
-    if (next.opens_at && next.closes_at && Date.parse(next.closes_at) <= Date.parse(next.opens_at)) {
-      throw new AppError(400, 'bad_voting_window', 'Voting end must be after voting start.');
-    }
     return this.save(actor, ip, 'voting', patch);
   }
 
@@ -71,8 +71,8 @@ export class EventService {
   }
 
   async rotateDisplayKey(actor: string, ip: string) {
-    await this.settings.update('display', { key: crypto.randomBytes(18).toString('base64url') });
-    await this.audit.record(actor, 'display_key_rotated', {}, ip);
+    await this.settings.update('display', { key: crypto.randomBytes(18).toString('base64url') },
+      manager => this.audit.record(actor, 'display_key_rotated', {}, ip, manager));
     return { ok: true };
   }
 
@@ -88,8 +88,8 @@ export class EventService {
   }
 
   private async save<K extends keyof AllSettings>(actor: string, ip: string, key: K, patch: Partial<AllSettings[K]>) {
-    const value = await this.settings.update(key, patch);
-    await this.audit.record(actor, 'settings_updated', { key, patch }, ip);
+    const value = await this.settings.update(key, patch,
+      manager => this.audit.record(actor, 'settings_updated', { key, patch }, ip, manager));
     return { ok: true, value };
   }
 }

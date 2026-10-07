@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import type { ResultsSnapshot, Settings, VotingState } from '../../lib/types';
-import { accent, toLocalInput, fmtTime } from '../../lib/util';
+import { accent, fmtTime } from '../../lib/util';
+import { scheduleInput, scheduleWindow } from '../../lib/schedule';
+import { useAction } from '../useAction';
 import { LoadError, PageHead, Spinner, Tile, useAdmin, useLoad } from '../ui';
 
-interface Stats { verified_visitors: number; votes: number; votes_last_5m: number; otps_last_hour: number; live_screens_this_node: number; redis: string }
+interface Stats { verified_visitors: number; votes: number; votes_last_5m: number; otps_last_hour: number; live_screens_this_node: number; redis: string; exhibitors: number }
 interface Links { voteUrl: string; displayUrl: string | null; voteQr: string }
 
 export default function Overview() {
@@ -15,60 +17,180 @@ export default function Overview() {
     api<Links>('/api/admin/links'),
   ]));
   const [stats, setStats] = useState<Stats | null>(null);
+  const [statsError, setStatsError] = useState(false);
   const [live, setLive] = useState<ResultsSnapshot | null>(null);
+  const [liveConnection, setLiveConnection] = useState<'connecting' | 'live' | 'polling' | 'offline'>('connecting');
   const [opensAt, setOpensAt] = useState('');
   const [closesAt, setClosesAt] = useState('');
+  const { busy, pending, run } = useAction();
+  const [currentVoting, setCurrentVoting] = useState<{ voting: VotingState; enabled: boolean } | null>(null);
+
+  useEffect(() => {
+    if (data) setCurrentVoting({ voting: data[0].voting, enabled: data[0].settings.voting.open });
+  }, [data]);
+
+  // Refresh the authoritative state at schedule boundaries and after missed live updates.
+  const nextBoundary = currentVoting?.voting.opens_at || currentVoting?.voting.closes_at;
+  useEffect(() => {
+    let cancelled = false;
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const result = await api<{ settings: Settings; voting: VotingState }>('/api/admin/settings');
+        if (!cancelled) {
+          setCurrentVoting({ voting: result.voting, enabled: result.settings.voting.open });
+          if (!isAdmin) {
+            setOpensAt(scheduleInput(result.settings.voting.opens_at));
+            setClosesAt(scheduleInput(result.settings.voting.closes_at));
+          }
+        }
+      } catch { /* Session expiry is handled centrally; the next poll retries connection failures. */ }
+      finally { pending = false; }
+    };
+    const interval = setInterval(() => { void refresh(); }, 5000);
+    const remaining = nextBoundary ? Date.parse(nextBoundary) - Date.now() : NaN;
+    const boundaryTimer = remaining >= 0
+      ? setTimeout(() => { void refresh(); }, Math.min(remaining + 50, 2147483647)) : undefined;
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      clearTimeout(boundaryTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [nextBoundary, isAdmin]);
 
   // Stats tiles refresh every 5 s
   useEffect(() => {
-    const load = () => api<Stats>('/api/admin/stats').then(setStats).catch(() => undefined);
+    let disposed = false, pending = false;
+    const load = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const result = await api<Stats>('/api/admin/stats');
+        if (!disposed) { setStats(result); setStatsError(false); }
+      } catch { if (!disposed) setStatsError(true); }
+      finally { pending = false; }
+    };
     load();
     const id = setInterval(load, 5000);
-    return () => clearInterval(id);
+    return () => { disposed = true; clearInterval(id); };
   }, []);
 
-  // Mini live standings via the same SSE stream the TV uses
+  // Keep standings fresh when streams fail or a proxy silently buffers them.
   useEffect(() => {
-    const es = new EventSource('/api/display/stream');
-    es.addEventListener('results', (ev) => setLive(JSON.parse((ev as MessageEvent).data)));
-    return () => es.close();
+    let disposed = false;
+    let streaming = false;
+    let lastStreamUpdate = 0;
+    let latestSnapshot = 0;
+    let polling = false;
+    let es: EventSource | null = null;
+    const receive = (snapshot: ResultsSnapshot) => {
+      if (disposed) return;
+      const generatedAt = Date.parse(snapshot.generated_at);
+      if (!Number.isFinite(generatedAt) || !Array.isArray(snapshot.categories)) throw new Error('Invalid results');
+      if (generatedAt < latestSnapshot) return;
+      latestSnapshot = generatedAt;
+      setLive(snapshot);
+      setCurrentVoting({ voting: snapshot.voting, enabled: snapshot.voting.open ||
+        snapshot.voting.reason === 'not_started' || snapshot.voting.reason === 'ended' });
+    };
+    const refresh = async () => {
+      if (disposed || polling) return;
+      polling = true;
+      try {
+        const snapshot = await api<ResultsSnapshot>('/api/admin/results');
+        receive(snapshot);
+        if (!disposed && !streaming) setLiveConnection('polling');
+      } catch {
+        if (!disposed && !streaming) setLiveConnection('offline');
+      } finally { polling = false; }
+    };
+    const fallback = () => {
+      if (disposed) return;
+      streaming = false;
+      setLiveConnection('polling');
+      void refresh();
+    };
+    try {
+      es = new EventSource('/api/display/stream');
+      es.addEventListener('results', (ev) => {
+        if (disposed) return;
+        try {
+          receive(JSON.parse((ev as MessageEvent).data));
+          streaming = true;
+          lastStreamUpdate = Date.now();
+          setLiveConnection('live');
+        } catch { fallback(); }
+      });
+      es.onerror = fallback;
+    } catch { fallback(); }
+    void refresh();
+    const timer = setInterval(() => {
+      if (streaming && Date.now() - lastStreamUpdate < 30000) return;
+      if (streaming) setLiveConnection('polling');
+      streaming = false;
+      void refresh();
+    }, 5000);
+    const onVisible = () => { if (document.visibilityState === 'visible') fallback(); };
+    window.addEventListener('online', fallback);
+    window.addEventListener('offline', fallback);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      es?.close();
+      clearInterval(timer);
+      window.removeEventListener('online', fallback);
+      window.removeEventListener('offline', fallback);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   useEffect(() => {
     if (!data) return;
-    setOpensAt(toLocalInput(data[0].settings.voting.opens_at));
-    setClosesAt(toLocalInput(data[0].settings.voting.closes_at));
+    setOpensAt(scheduleInput(data[0].settings.voting.opens_at));
+    setClosesAt(scheduleInput(data[0].settings.voting.closes_at));
   }, [data]);
 
   if (error) return <LoadError error={error} />;
   if (!data) return <Spinner />;
-  const [{ settings: s, voting }, links] = data;
-  const open = s.voting.open;
+  const [{ settings: s }, links] = data;
+  const voting = currentVoting?.voting ?? data[0].voting;
+  const open = currentVoting?.enabled ?? s.voting.open;
   const stateLabel = voting.open ? 'Voting is OPEN' : voting.reason === 'not_started' ? 'Scheduled — not started yet' : voting.reason === 'ended' ? 'Ended (schedule)' : 'Voting is CLOSED';
 
-  const toggle = async () => {
+  const toggle = () => run('voting', async () => {
     if (open && !(await confirm('Close voting now? Visitors will no longer be able to vote.', { danger: true, confirmText: 'Close voting' }))) return;
-    await api('/api/admin/settings/voting', { method: 'PUT', body: { open: !open } });
-    toast(open ? 'Voting closed' : 'Voting opened');
-    reload();
-  };
-
-  const saveSchedule = async () => {
     try {
-      await api('/api/admin/settings/voting', { method: 'PUT', body: { opens_at: opensAt || null, closes_at: closesAt || null } });
+      await api('/api/admin/settings/voting', { method: 'PUT', body: { open: !open } });
+      toast(open ? 'Voting closed' : 'Voting opened');
+      reload();
+    } catch (ex) { toast((ex as Error).message, 'err'); }
+  });
+
+  const saveSchedule = () => run('schedule', async () => {
+    try {
+      await api('/api/admin/settings/voting', { method: 'PUT', body: {
+        ...scheduleWindow(opensAt, closesAt),
+      } });
       toast('Schedule saved'); reload();
     } catch (e) { toast((e as Error).message, 'err'); }
-  };
+  });
 
-  const rotate = async () => {
+  const rotate = () => run('rotate', async () => {
     if (!(await confirm('Rotate the display key? Every TV currently showing results will need the new link.', { confirmText: 'Rotate key' }))) return;
-    await api('/api/admin/display/rotate', { method: 'POST', body: {} });
-    toast('Display key rotated'); reload();
-  };
+    try {
+      await api('/api/admin/display/rotate', { method: 'POST', body: {} });
+      toast('Display key rotated'); reload();
+    } catch (ex) { toast((ex as Error).message, 'err'); }
+  });
 
   return (
     <div>
-      <PageHead title="Overview" sub={s.event.name} />
+      <PageHead title="Overview" sub={live?.event.name || s.event.name} />
 
       <section className={`card voting ${voting.open ? 'is-open' : 'is-closed'}`}>
         <div className="voting-top">
@@ -77,22 +199,26 @@ export default function Overview() {
             <h2 className="voting-state"><i className="dot" />{stateLabel}</h2>
             {voting.open && voting.closes_at && <p className="muted">Closes automatically {fmtTime(voting.closes_at)}</p>}
           </div>
-          {isAdmin && <button className={`btn btn-lg ${open ? 'btn-danger' : 'btn-go'}`} onClick={toggle}>{open ? 'Close voting' : 'Open voting'}</button>}
+          {isAdmin && <button className={`btn btn-lg ${open ? 'btn-danger' : 'btn-go'}`} disabled={busy} aria-busy={pending === 'voting'} onClick={toggle}>{pending === 'voting' ? 'Updating…' : open ? 'Close voting' : 'Open voting'}</button>}
         </div>
         <details className="schedule">
           <summary>Optional schedule (auto open/close)</summary>
+          <p className="muted small">Start and end times use Amman time (Asia/Amman), regardless of your device timezone.</p>
           <p className="muted small">When “Open voting” is on, votes are only accepted between these times. Leave empty for no limit.</p>
           <div className="grid2">
             <label className="field"><span>Opens at</span><input className="input" type="datetime-local" disabled={!isAdmin} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} /></label>
             <label className="field"><span>Closes at</span><input className="input" type="datetime-local" disabled={!isAdmin} value={closesAt} onChange={(e) => setClosesAt(e.target.value)} /></label>
           </div>
-          {isAdmin && <button className="btn" onClick={saveSchedule}>Save schedule</button>}
+          {isAdmin && <button className="btn" disabled={busy} aria-busy={pending === 'schedule'} onClick={saveSchedule}>{pending === 'schedule' ? 'Saving…' : 'Save schedule'}</button>}
         </details>
       </section>
 
+      {statsError && <p className="alert" role="status">Statistics updates are unavailable. {stats ? 'Showing the last received values. ' : ''}Retrying automatically.</p>}
+      {!stats && !statsError && <p className="muted" role="status">Loading statistics…</p>}
       <div className="tiles">
         {stats ? (<>
           <Tile label="Verified visitors" value={stats.verified_visitors} />
+          <Tile label="Active exhibitors" value={stats.exhibitors} />
           <Tile label="Votes cast" value={stats.votes} />
           <Tile label="Votes · last 5 min" value={stats.votes_last_5m} />
           <Tile label="SMS codes · last hour" value={stats.otps_last_hour} />
@@ -104,8 +230,15 @@ export default function Overview() {
       <div className="grid-2-1">
         <section className="card">
           <div className="card-head"><h2>Live standings</h2><Link to="/admin/results" className="btn btn-link">Full results →</Link></div>
+          <p className="muted small" role="status">
+            <span className={`pill ${liveConnection === 'live' ? 'ok' : liveConnection === 'offline' ? 'warn' : ''}`}>
+              {liveConnection === 'live' ? 'Live' : liveConnection === 'polling' ? 'Refreshing every 5 seconds' : liveConnection === 'offline' ? 'Connection interrupted' : 'Connecting…'}
+            </span>
+            {live && <> · Last updated {fmtTime(live.generated_at)}</>}
+          </p>
+          {liveConnection === 'offline' && <p className="alert" role="alert">{live ? 'Showing the last received results. ' : ''}Updates are unavailable. Retrying automatically.</p>}
           <div className="mini-results">
-            {!live ? <p className="muted">Connecting…</p> : live.categories.map((c, i) => (
+            {!live ? <p className="muted">{liveConnection === 'offline' ? 'Waiting for results…' : 'Loading standings…'}</p> : live.categories.map((c, i) => (
               <div key={c.id} className="mini-col" style={accent(i)}>
                 <h3>{c.name}<span>{c.total} votes</span></h3>
                 <ol>{c.standings.slice(0, 3).map((x) => <li key={x.id}><span>{x.project || x.name}</span><b>{x.votes}</b></li>)}</ol>
@@ -128,9 +261,12 @@ export default function Overview() {
                 <p className="eyebrow">Live results screen (protected)</p>
                 <code className="url">{links.displayUrl}</code>
                 <div className="actions">
-                  <button className="btn" onClick={async () => { await navigator.clipboard.writeText(links.displayUrl!); toast('Display link copied'); }}>Copy link</button>
+                  <button className="btn" onClick={async () => {
+                    try { await navigator.clipboard.writeText(links.displayUrl!); toast('Display link copied'); }
+                    catch { toast('Could not copy the display link. Please copy it manually.', 'err'); }
+                  }}>Copy link</button>
                   <a className="btn" href={links.displayUrl} target="_blank" rel="noopener">Open</a>
-                  {isAdmin && <button className="btn btn-ghost" onClick={rotate}>Rotate key</button>}
+                  {isAdmin && <button className="btn btn-ghost" disabled={busy} aria-busy={pending === 'rotate'} onClick={rotate}>{pending === 'rotate' ? 'Rotating…' : 'Rotate key'}</button>}
                 </div>
               </div>
             )}

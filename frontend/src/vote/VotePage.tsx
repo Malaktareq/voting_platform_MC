@@ -50,6 +50,17 @@ export default function VotePage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  // Reset clears saved votes (or registrations); reconcile open screens with server state.
+  useEffect(() => {
+    if (challenge) return;
+    let refreshing = false;
+    const timer = window.setInterval(async () => {
+      if (refreshing || document.visibilityState !== 'visible' || !navigator.onLine) return;
+      refreshing = true;
+      try { await load(); } finally { refreshing = false; }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [load, challenge]);
 
   useEffect(() => {
   console.log('GPS DEBUG — data:', data);

@@ -125,46 +125,52 @@ function ConfirmSheet({ e, cat, index, onClose }: { e: Exhibitor; cat: Category;
   const [busy, setBusy] = useState<'casting' | 'locating' | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const goRef = useRef<HTMLButtonElement>(null);
+  const submitting = useRef(false);
+  const close = () => { if (!submitting.current) onClose(); };
 
   useEffect(() => {
     goRef.current?.focus();
     document.body.classList.add('noscroll');
-    const esc = (ev: KeyboardEvent) => { if (ev.key === 'Escape') onClose(); };
+    const esc = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !submitting.current) onClose(); };
     document.addEventListener('keydown', esc);
     return () => { document.body.classList.remove('noscroll'); document.removeEventListener('keydown', esc); };
   }, [onClose]);
 
-  const cast = async (loc = location) => {
+  const cast = async (loc = location, retryLocation = false) => {
+    if (submitting.current && !retryLocation) return;
+    submitting.current = true;
     setBusy('casting'); setErr(null);
     try {
-      const r = await api<{ session: VisitorSession }>('/api/public/votes', {
-        method: 'POST', body: { categoryId: cat.id, exhibitorId: e.id, location: loc ?? undefined }, retries: 3,
-      });
-      setSession(r.session);
-      onClose();
-      setToast(t('recorded'));
-      navigator.vibrate?.(30);
-    } catch (ex) {
-      const e2 = ex as ApiError;
-      if (e2.code === 'already_voted' && e2.body.session) { setSession(e2.body.session); onClose(); return; }
-      if (e2.code === 'not_verified') { setSession(null); onClose(); await reload(); return; }
-      if (e2.code === 'voting_closed') { onClose(); await reload(); return; }
-      if (e2.code === 'not_on_site' && e2.body.access?.needsLocation && !loc) {
-        try {
-          setBusy('locating');
-          const l = await getLocation();
-          setLocation(l);
-          return cast(l);
-        } catch { setErr(t('locDenied')); setBusy(null); return; }
+      try {
+        const r = await api<{ session: VisitorSession }>('/api/public/votes', {
+          method: 'POST', body: { categoryId: cat.id, exhibitorId: e.id, location: loc ?? undefined }, retries: 3,
+        });
+        setSession(r.session);
+        onClose();
+        setToast(t('recorded'));
+        navigator.vibrate?.(30);
+      } catch (ex) {
+        const e2 = ex as ApiError;
+        if (e2.code === 'already_voted' && e2.body.session) { setSession(e2.body.session); onClose(); return; }
+        if (e2.code === 'not_verified') { setSession(null); onClose(); await reload(); return; }
+        if (e2.code === 'voting_closed') { onClose(); await reload(); return; }
+        if (e2.code === 'not_on_site' && e2.body.access?.needsLocation && !loc) {
+          try {
+            setBusy('locating');
+            const l = await getLocation();
+            setLocation(l);
+            return await cast(l, true);
+          } catch { setErr(t('locDenied')); setBusy(null); return; }
+        }
+        setErr(e2.message);
       }
-      setErr(e2.message);
-    }
-    setBusy(null);
+      setBusy(null);
+    } finally { submitting.current = false; setBusy(null); }
   };
 
   return (
     <div className="sheet">
-      <div className="sheet-backdrop" onClick={onClose} />
+      <div className="sheet-backdrop" onClick={close} />
       <div className="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title" style={accent(index)}>
         <div className="grab" aria-hidden="true" />
         <p className="kicker" id="sheet-title">{t('confirmTitle')}</p>
@@ -178,7 +184,7 @@ function ConfirmSheet({ e, cat, index, onClose }: { e: Exhibitor; cat: Category;
         <button ref={goRef} className="btn btn-primary btn-block" disabled={!!busy} onClick={() => cast()}>
           {busy === 'casting' ? t('casting') : busy === 'locating' ? t('locating') : t('confirm')}
         </button>
-        <button className="btn btn-ghost btn-block" onClick={onClose}>{t('cancel')}</button>
+        <button className="btn btn-ghost btn-block" disabled={!!busy} onClick={close}>{t('cancel')}</button>
       </div>
     </div>
   );
