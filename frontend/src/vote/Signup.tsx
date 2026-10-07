@@ -91,9 +91,9 @@ export function RegisterScreen({ form, setForm, setChallenge }: {
         <img className="card-burgundy-asset" src="/assets/corner-burgundy.svg" alt="" />
         <p className="eyebrow">{t('heroKicker')}</p>
         <h1 id="voter-login-title">
-          Pick your
+          {t('loginTitle')}
           <br />
-          <em>favourite makers</em>
+          <em>{t('loginTitleAccent')}</em>
         </h1>
         <span className="title-rule" aria-hidden="true" />
         <label className="login-design-field" htmlFor="f-name">
@@ -185,7 +185,7 @@ export function OtpScreen({ challenge, setChallenge, form }: {
       {challenge.devCode && <p className="demo">{t('demoCode', challenge.devCode)}</p>}
       <form onSubmit={(e) => { e.preventDefault(); verify(code); }}>
         <input id="f-code" ref={inputRef} className="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}"
-          maxLength={6} required aria-label={t('otpTitle')} dir="ltr" value={code} onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          maxLength={6} required aria-label={t('otpTitle')} dir="ltr" value={code} onChange={(e) => onChange(e.target.value)} />
         {err && <p className="alert">{err}</p>}
         <button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? t('verifying') : t('verify')}</button>
       </form>

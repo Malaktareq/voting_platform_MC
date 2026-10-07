@@ -4,7 +4,8 @@ import type { GeoPoint, PublicState, VisitorSession } from '../lib/types';
 import { getLocation, safeStore, useBodyClass } from '../lib/util';
 import '../styles/vote.css';
 import { Ballot } from './Ballot';
-import { makeT, type Lang } from './i18n';
+import { makeT } from './i18n';
+import { PublicLanguageButton, usePublicLanguage } from '../lib/public-language';
 import { ClosedScreen, DoneScreen, ErrorScreen, OffsiteScreen, QrRequiredScreen } from './Screens';
 import { checkLocation as requestLocationCheck, registrationGate } from './access';
 import { OtpScreen, RegisterScreen, type Challenge, type FormState } from './Signup';
@@ -18,7 +19,7 @@ import { VoteContext } from './VoteContext';
  */
 export default function VotePage() {
   useBodyClass('vote');
-  const [lang, setLang] = useState<Lang>('en');
+  const { lang, setLang } = usePublicLanguage();
   const t = useMemo(() => makeT(lang), [lang]);
 
   const [data, setData] = useState<PublicState | null>(null);
@@ -134,13 +135,6 @@ export default function VotePage() {
       .catch(() => { /* The off-site screen offers a manual retry. */ })
       .finally(() => setLocating(false));
   }, [needsAutoLocation, accessMode, checkLocation]);
-  // Language: <html lang/dir>, remembered per device
-  useEffect(() => {
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    safeStore.set('lang', lang, true);
-    return () => { document.documentElement.dir = 'ltr'; document.documentElement.lang = 'en'; };
-  }, [lang]);
 
   // Network awareness: banner when offline, refresh when back / when the tab returns
   useEffect(() => {
@@ -186,15 +180,13 @@ export default function VotePage() {
 
   return (
     <VoteContext.Provider value={ctx}>
+      <PublicLanguageButton lang={lang} setLang={setLang} />
       {!online && <div className="offline">{t('offline')}</div>}
       <header className="topbar">
         <a className="brand" href="/" aria-label="MC2026 Awards home">
           <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
           <span className="brand-text"><b>MC2026</b> <span>{t('awards')}</span></span>
         </a>
-        <button className="lang" type="button" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} aria-label="Switch language">
-          {t('switchTo')}
-        </button>
       </header>
       <main id="app" aria-live="polite">{screen}</main>
       {toast && <div className="toast" role="status">{toast}</div>}

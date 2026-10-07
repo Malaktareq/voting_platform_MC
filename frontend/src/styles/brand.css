@@ -1,3 +1,38 @@
+/* Public language control stays available on login, ballots, and display lock/error screens. */
+.public-language {
+  position: fixed;
+  inset-block-start: max(14px, env(safe-area-inset-top));
+  inset-inline-end: max(16px, env(safe-area-inset-right));
+  z-index: 100;
+  min-height: 44px;
+  min-width: 88px;
+  padding: 8px 16px;
+  border: 1px solid #cbc5e8;
+  border-radius: 999px;
+  background: #fff;
+  color: #07177e;
+  box-shadow: 0 3px 12px rgb(7 23 126 / .12);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.public-language:focus-visible { outline: 3px solid #7f32d9; outline-offset: 3px; }
+html body.vote .topbar { padding-inline-end: 128px; }
+html body.tv .hdr { padding-top: 58px; }
+body.vote.vote-login .maker-brand { left: 16px; right: auto; transform: none; max-width: calc(100vw - 132px); }
+body.vote.vote-login .maker-brand img { max-width: 100%; }
+html[dir="rtl"] body.vote.vote-login .maker-brand { left: auto; right: 16px; }
+html[dir="rtl"] body.vote .login-card h1 { letter-spacing: 0; line-height: 1.4; }
+html[dir="rtl"] body.vote .login-design-field input:not([dir="ltr"]) { text-align: right; }
+html[dir="rtl"] body.vote .login-design-submit svg { transform: scaleX(-1); }
+html[dir="rtl"] body.tv .hdr-status,
+html[dir="rtl"] body.tv .stat,
+html[dir="rtl"] body.tv .n { text-align: start; }
+html[dir="rtl"] body.tv .hdr-title h1,
+html[dir="rtl"] body.tv .cta-copy b { letter-spacing: 0; line-height: 1.35; }
+html[dir="rtl"] body.tv .cta-copy span { letter-spacing: 0; }
+html[dir="rtl"] body.tv .ftr { margin-left: 0; margin-right: calc(50% - 50vw); }
+html[dir="rtl"] body.tv .note { padding-left: 0; padding-right: 2rem; }
 /* The Maker Collective shared design tokens */
 :root {
   --purple: #7f32d9;
