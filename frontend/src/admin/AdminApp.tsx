@@ -8,6 +8,7 @@ import { Login } from './Login';
 import { AdminProvider, Spinner, useAdmin } from './ui';
 import Overview from './views/Overview';
 import { useAction } from './useAction';
+import NotFound from '../NotFound';
 
 const Exhibitors = lazy(() => import('./views/Exhibitors'));
 const Categories = lazy(() => import('./views/Categories'));
@@ -102,7 +103,7 @@ function Shell({ showMfaTip }: { showMfaTip: boolean }) {
             <Route path="access" element={<Access />} />
             <Route path="security" element={<Security />} />
             {isAdmin && <Route path="audit" element={<Audit />} />}
-            <Route path="*" element={<Navigate to="overview" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>
