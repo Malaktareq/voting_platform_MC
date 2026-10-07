@@ -1,0 +1,220 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { api, ApiError } from '../lib/api';
+import type { CategoryResult, ResultsSnapshot } from '../lib/types';
+import { useBodyClass } from '../lib/util';
+import '../styles/display.css';
+
+const TOP_N = 3;
+const DISPLAY_ACCENTS = ['#7b2ff0', '#2476ef', '#f8bd18', '#16bbb0', '#a52a3a'];
+
+/**
+ * Live results dashboard for TV / projector (F7, F8).
+ * Primary channel: Server-Sent Events. Fallback: polling every 5 s after
+ * repeated SSE errors (some venue proxies buffer streams).
+ */
+export default function DisplayPage() {
+  useBodyClass('tv');
+  const [phase, setPhase] = useState<'loading' | 'locked' | 'live' | 'error'>('loading');
+  const [lockMsg, setLockMsg] = useState<string | null>(null);
+  const [snap, setSnap] = useState<ResultsSnapshot | null>(null);
+  const [prev, setPrev] = useState<ResultsSnapshot | null>(null);
+  const [qr, setQr] = useState<{ url: string; qr: string } | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(0);
+  const [, tick] = useState(0);
+
+  const receive = useCallback((s: ResultsSnapshot) => {
+    setSnap((old) => { setPrev(old); return s; });
+    setLastUpdate(Date.now());
+  }, []);
+
+  const boot = useCallback(async () => {
+    const key = new URLSearchParams(window.location.search).get('key');
+    if (key) {
+      try { await api('/api/display/auth', { method: 'POST', body: { key } }); }
+      catch (e) { setLockMsg((e as Error).message); setPhase('locked'); return; }
+      window.history.replaceState(null, '', '/display'); // don't leave the key on screen
+    }
+    try {
+      receive(await api<ResultsSnapshot>('/api/display/results'));
+      setPhase('live');
+      api<{ url: string; qr: string }>('/api/display/qr').then(setQr).catch(() => undefined);
+    } catch (e) {
+      if ((e as ApiError).status === 401) { setPhase('locked'); return; }
+      setPhase('error');
+      setTimeout(boot, 5000);
+    }
+  }, [receive]);
+
+  useEffect(() => { boot(); }, [boot]);
+
+  // Live channel
+  useEffect(() => {
+    if (phase !== 'live') return;
+    let failures = 0;
+    let poll: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => { if (poll) clearInterval(poll); poll = null; };
+    const es = new EventSource('/api/display/stream');
+    es.addEventListener('results', (ev) => {
+      failures = 0; stopPolling();
+      try { receive(JSON.parse((ev as MessageEvent).data)); } catch { /* ignore */ }
+    });
+    es.onerror = () => {
+      failures += 1;
+      if (failures >= 3 && !poll) {
+        poll = setInterval(async () => {
+          try { receive(await api<ResultsSnapshot>('/api/display/results')); }
+          catch (e) { if ((e as ApiError).status === 401) { es.close(); stopPolling(); setLockMsg('Display key was rotated.'); setPhase('locked'); } }
+        }, 5000);
+      }
+    };
+    const staleTimer = setInterval(() => tick((n) => n + 1), 5000);
+    return () => { es.close(); stopPolling(); clearInterval(staleTimer); };
+  }, [phase, receive]);
+
+  if (phase === 'locked') return <KeyForm message={lockMsg} onUnlock={() => { setLockMsg(null); setPhase('loading'); boot(); }} onError={setLockMsg} />;
+  if (!snap) return <div className="center"><span className="spinner" /></div>;
+
+  const finalMode = !snap.voting.open && snap.totals.votes > 0;
+  const stale = Date.now() - lastUpdate > 30000;
+
+  return (
+    <>
+      <div className="display-stage" aria-hidden="true">
+        <span className="shape shape-gear" />
+        <span className="shape shape-sun" />
+        <span className="shape shape-orbit" />
+        <span className="shape shape-swoop" />
+      </div>
+
+      <header className="hdr">
+        <div className="hdr-brand">
+          <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
+        </div>
+        <div className="hdr-title">
+          <p className="kicker">{snap.event.name || 'The Maker Collective 2026'}</p>
+          <h1>Live Voting Results</h1>
+          <p className="dek">See the most voted makers in each category</p>
+        </div>
+        <div className="hdr-status">
+          <Stat label="Votes" value={snap.totals.votes} prev={prev?.totals.votes} />
+          {finalMode ? <span className="pill final">Final</span>
+            : snap.voting.open ? <span className={`pill live${stale ? ' stale' : ''}`}><i />Live</span>
+            : <span className="pill closed">Closed</span>}
+        </div>
+      </header>
+
+      <main className="cols" style={{ '--n': snap.categories.length } as React.CSSProperties}>
+        {snap.categories.map((c, i) => (
+          <Column key={c.id} c={c} index={i} finalMode={finalMode} showCounts={snap.show_counts} prev={prev?.categories.find((x) => x.id === c.id)} />
+        ))}
+      </main>
+
+      <footer className="ftr">
+        <div className="cta">
+          <div className="cta-copy">
+            <span>Be part of The Maker Collective 2026</span>
+            <b>Scan the QR code to cast your vote</b>
+            <i />
+          </div>
+          {qr && snap.voting.open ? (
+            <div className="qr">
+              <img src={qr.qr} alt="QR code to vote" />
+            </div>
+          ) : (
+            <p className="note">{finalMode ? 'Voting has ended' : 'Voting is not open yet'}</p>
+          )}
+        </div>
+      </footer>
+    </>
+  );
+}
+
+function Stat({ label, value, prev }: { label: string; value: number; prev?: number }) {
+  const changed = prev != null && prev !== value;
+  return (
+    <div className={`stat${changed ? ' bump' : ''}`} key={changed ? value : undefined}>
+      <b>{value.toLocaleString('en')}</b><span>{label}</span>
+    </div>
+  );
+}
+
+function Column({ c, index, finalMode, showCounts, prev }: { c: CategoryResult; index: number; finalMode: boolean; showCounts: boolean; prev?: CategoryResult }) {
+  const prevVotes = new Map(prev ? prev.standings.map((s) => [s.id, s.votes]) : []);
+  const max = Math.max(1, ...c.standings.map((s) => s.votes));
+  const leaders = c.standings.filter((s) => s.rank === 1 && s.votes > 0);
+  const lead = leaders[0];
+  const nonLeaders = c.standings.filter((s) => !leaders.some((l) => l.id === s.id));
+  const rows = leaders.length > 1 && lead ? [lead, ...nonLeaders.slice(0, TOP_N - 1)] : c.standings.slice(0, TOP_N);
+  const displayedCount = leaders.length > 1 ? leaders.length + rows.length - 1 : rows.length;
+  const categoryStyle = { '--accent': DISPLAY_ACCENTS[index % DISPLAY_ACCENTS.length] } as React.CSSProperties;
+  const shape = ['network', 'circle', 'triangle', 'diamond', 'spark'][index % 5];
+
+  // FLIP: animate rows from their previous position when the ranking changes
+  const listRef = useRef<HTMLOListElement>(null);
+  const positions = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.querySelectorAll<HTMLElement>('[data-key]').forEach((row) => {
+      const key = row.dataset.key!;
+      const top = row.getBoundingClientRect().top;
+      const old = positions.current.get(key);
+      if (old != null && Math.abs(old - top) > 1) {
+        row.animate([{ transform: `translateY(${old - top}px)` }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      }
+      positions.current.set(key, top);
+    });
+  });
+
+  return (
+    <section className={`col col-${index % 5}${finalMode ? ' is-final' : ''}`} style={categoryStyle}>
+      <div className="col-head">
+        <span className={`cat-mark ${shape}`} aria-hidden="true"><i /></span>
+        <div>
+          <h2>{c.name}</h2>
+          {c.description && <p>{c.description}</p>}
+        </div>
+      </div>
+      {lead ? null : <div className="leader empty"><p>Waiting for the first vote...</p></div>}
+      <ol className="rows" ref={listRef} aria-label={`${c.name} standings`}>
+        {rows.map((s, rowIndex) => {
+          const up = prevVotes.has(s.id) && prevVotes.get(s.id)! < s.votes;
+          const pct = (s.votes / max) * 100;
+          const isLeader = s.rank === 1 && s.votes > 0;
+          return (
+            <li key={`${c.id}:${s.id}`} data-key={`${c.id}:${s.id}`} className={`row${up ? ' up' : ''}${isLeader ? ' leader-row' : ''}`}>
+              <span className="rank">{s.votes ? s.rank : '-'}</span>
+              {isLeader && <span className="crown" aria-hidden="true" />}
+              <div className="row-main">
+                <div className="row-label"><b>{leaders.length > 1 && rowIndex === 0 ? leaders.map((l) => l.project || l.name).join(' & ') : s.project || s.name}</b></div>
+                <div className="bar"><i style={{ width: `${Math.max(pct, s.votes ? 10 : 0)}%` }} /></div>
+              </div>
+              {showCounts && <span className="n">{s.votes.toLocaleString('en')}<small>votes</small></span>}
+            </li>
+          );
+        })}
+      </ol>
+      {c.standings.length > displayedCount && <p className="more">+{c.standings.length - displayedCount} more makers</p>}
+    </section>
+  );
+}
+
+function KeyForm({ message, onUnlock, onError }: { message: string | null; onUnlock: () => void; onError: (m: string) => void }) {
+  const [key, setKey] = useState('');
+  return (
+    <div className="center">
+      <form className="keyform" onSubmit={async (e) => {
+        e.preventDefault();
+        try { await api('/api/display/auth', { method: 'POST', body: { key: key.trim() } }); onUnlock(); }
+        catch (err) { onError((err as Error).message); }
+      }}>
+        <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
+        <h1>Live results</h1>
+        <p>This screen is protected. Open the display link from the admin console, or enter the display key.</p>
+        {message && <p className="err">{message}</p>}
+        <input type="password" placeholder="Display key" autoComplete="off" autoFocus value={key} onChange={(e) => setKey(e.target.value)} />
+        <button type="submit">Unlock</button>
+      </form>
+    </div>
+  );
+}
