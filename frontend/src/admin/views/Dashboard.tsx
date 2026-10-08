@@ -334,7 +334,7 @@ export default function Dashboard() {
           <div className="stack tight">
             <b>{d.votePage}</b>
             <code className="url" dir="ltr">{links.voteUrl}</code>
-            {isLocalAddress(links.voteUrl) && <p className="share-warn" role="note">{d.localWarn} <Link to="/admin/settings/event">{d.localFix}</Link></p>}
+            {isLocalAddress(links.voteUrl) && <p className="share-warn" role="note">{d.localWarn}</p>}
             <div className="actions">
               <button className="btn btn-sm" onClick={() => copy(links.voteUrl, d.voteLink)}>{d.copyLink}</button>
               <a className="btn btn-sm" href="/" target="_blank" rel="noopener" title={d.openPageHint}>{d.openPage}</a>

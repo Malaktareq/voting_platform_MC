@@ -13,7 +13,7 @@ export default function Access() {
   const { isAdmin, toast } = useAdmin();
   const { t } = useLang();
   const a = t.access;
-  const { data, error, reload } = useLoad(() => api<{ settings: Settings; clientIp: string }>('/api/admin/settings'));
+  const { data, error, reload } = useLoad(() => api<{ settings: Settings; clientIp: string; clientNetworks?: string[] }>('/api/admin/settings'));
   const [mode, setMode] = useState('ip_or_geo');
   const [cidrs, setCidrs] = useState('');
   const [geo, setGeo] = useState({ lat: '', lng: '', radius_m: '', max_accuracy_m: '' });
@@ -22,7 +22,7 @@ export default function Access() {
   useEffect(() => {
     if (!data) return;
     const s = data.settings;
-    // Retired single-check rules ("ip", "geo") are offered as the combined rule; saving applies it.
+    // Retired single-check rules are offered as the combined rule; saving applies it.
     setMode(ACCESS_MODES.includes(s.access.mode) ? s.access.mode : 'ip_or_geo');
     setCidrs(s.access.allowed_cidrs.join('\n'));
     const g = s.access.geofence;
@@ -35,7 +35,11 @@ export default function Access() {
   const ip = data.clientIp;
   const ipRange = `${ip}${ip.includes(':') ? '/128' : '/32'}`;
   const ipList = cidrs.split(/[\s,]+/).filter(Boolean);
-  const hasThisNetwork = ipList.includes(ipRange) || ipList.includes(ip);
+  const detectedNetworks = data.clientNetworks || [];
+  const networkRanges = detectedNetworks.length ? detectedNetworks : [ipRange];
+  const hasThisNetwork = detectedNetworks.length
+    ? detectedNetworks.every((network) => ipList.includes(network))
+    : ipList.includes(ipRange) || ipList.includes(ip);
   const geoOn = usesGeo(mode), ipOn = usesIp(mode);
   const geoSet = geo.lat !== '' && geo.lng !== '';
   const saved = data.settings.access;
@@ -87,7 +91,7 @@ export default function Access() {
               <code dir="ltr">{ip}</code>
               {hasThisNetwork
                 ? <span className="pill ok">{a.allowed}</span>
-                : !dis && <button type="button" className="btn btn-sm btn-primary" onClick={() => setCidrs(`${cidrs.trim()}\n${ipRange}`.trim())}>{a.useNetwork}</button>}
+                : !dis && <button type="button" className="btn btn-sm btn-primary" onClick={() => setCidrs([...new Set([...ipList, ...networkRanges])].join('\n'))}>{a.useNetwork}</button>}
             </div>
             <label className="field"><span>{a.networks}</span>
               <textarea className="input mono" dir="ltr" rows={4} placeholder={a.networksPh} value={cidrs} onChange={(e) => setCidrs(e.target.value)} /></label>

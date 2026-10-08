@@ -30,17 +30,37 @@ const KEY = path.join(CERT_DIR, 'lan-key.pem');
 const CERT = path.join(CERT_DIR, 'lan-cert.pem');
 const CERT_IPS = path.join(CERT_DIR, 'lan-cert-ips.txt');
 
-/** IPv4 addresses of real network adapters (skips loopback, WSL, Docker and VM adapters). */
-function lanAddresses() {
+function ipv4Number(value) {
+  const octets = value.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  return octets.reduce((n, part) => ((n << 8) | part) >>> 0, 0);
+}
+
+/** Calculate a network CIDR from the adapter's own address and netmask. */
+function networkCidr(address, netmask) {
+  const addr = ipv4Number(address), mask = ipv4Number(netmask);
+  if (addr === null || mask === null) return null;
+  const bits = mask.toString(2).padStart(32, '0');
+  const prefix = bits.indexOf('0') < 0 ? 32 : bits.indexOf('0');
+  if (bits.slice(prefix).includes('1')) return null;
+  const network = (addr & mask) >>> 0;
+  const octets = [24, 16, 8, 0].map((shift) => (network >>> shift) & 255);
+  return `${octets.join('.')}/${prefix}`;
+}
+
+/** IPv4 addresses and subnets of real adapters (skips loopback, WSL, Docker and VM adapters). */
+function lanInterfaces() {
   const out = [];
   for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
     if (/vEthernet|WSL|docker|VirtualBox|VMware|Loopback|br-|veth/i.test(name)) continue;
     for (const a of addrs || []) {
       // Node reports family as either "IPv4" or 4, depending on its version.
-      if ((a.family === 'IPv4' || a.family === 4) && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address);
+      if ((a.family === 'IPv4' || a.family === 4) && !a.internal && !a.address.startsWith('169.254.')) {
+        out.push({ address: a.address, network: networkCidr(a.address, a.netmask) });
+      }
     }
   }
-  return out;
+  return out.filter((item) => item.network);
 }
 
 function findOpenssl() {
@@ -73,7 +93,21 @@ const clientAddress = (req) => (req.socket.remoteAddress || '').replace(/^::ffff
 
 /** Forward one request; the phone's address replaces any X-Forwarded-For it sent. */
 function forward(req, res) {
-  const headers = { ...req.headers, 'x-forwarded-for': clientAddress(req), 'x-forwarded-proto': 'https' };
+  const clientIp = clientAddress(req);
+  const clientAddressNumber = ipv4Number(clientIp);
+  const networksForClient = adapters.filter((item) => {
+    const [networkIp, prefixText] = item.network.split('/');
+    const networkNumber = ipv4Number(networkIp), prefix = Number(prefixText);
+    if (clientAddressNumber === null || networkNumber === null || !Number.isInteger(prefix)) return false;
+    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+    return ((clientAddressNumber & mask) >>> 0) === networkNumber;
+  }).map((item) => item.network);
+  const headers = {
+    ...req.headers,
+    'x-forwarded-for': clientIp,
+    'x-forwarded-proto': 'https',
+    'x-event-lan-networks': (networksForClient.length ? networksForClient : networks).join(','),
+  };
   const upstream = http.request({
     protocol: TARGET.protocol, hostname: TARGET.hostname, port: TARGET.port, path: req.url, method: req.method, headers,
   }, (up) => {
@@ -89,7 +123,9 @@ function forward(req, res) {
   req.pipe(upstream);
 }
 
-const ips = lanAddresses();
+const adapters = lanInterfaces();
+const ips = [...new Set(adapters.map((item) => item.address))];
+const networks = [...new Set(adapters.map((item) => item.network))];
 ensureCertificate(ips);
 
 https.createServer({ key: readFileSync(KEY), cert: readFileSync(CERT) }, forward)
@@ -103,11 +139,7 @@ https.createServer({ key: readFileSync(KEY), cert: readFileSync(CERT) }, forward
     const port = PORT === 443 ? '' : `:${PORT}`;
     console.log('\nMC2026 LAN gateway is running. Phones on the same Wi-Fi can open:');
     for (const ip of ips) console.log(`  https://${ip}${port}/        admin: https://${ip}${port}/admin`);
-    if (ips[0]) {
-      const net = ips[0].split('.').slice(0, 3).join('.');
-      console.log(`\nSet PUBLIC_URL=https://${ips[0]}${port} in .env so the QR code points here.`);
-      console.log(`In Admin › Settings › On-site access, allow this Wi-Fi with: ${net}.0/24`);
-    }
+    console.log('\nOpen the admin page using one of these addresses; voting links use the address you opened.');
     console.log('Phones will show a certificate warning the first time: choose "Advanced" › "Proceed".\n');
   });
 

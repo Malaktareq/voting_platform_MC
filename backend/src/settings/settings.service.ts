@@ -91,10 +91,11 @@ export class SettingsService {
     return values;
   }
 
-  /** Address visitors' phones open (QR code, shared links): the admin's setting, else PUBLIC_URL. No trailing slash. */
-  async publicBase(): Promise<string> {
+  /** Address visitors open: event override, configured PUBLIC_URL, then the host used by this request. */
+  async publicBase(requestOrigin?: string): Promise<string> {
     const s = await this.getAll();
-    return (s.event.public_url || config.publicUrl).replace(/\/+$/, '');
+    const fallback = config.publicUrl || requestOrigin || `http://localhost:${config.port}`;
+    return (s.event.public_url || fallback).replace(/\/+$/, '');
   }
 
   votingState(s: AllSettings): VotingState {

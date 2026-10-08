@@ -8,6 +8,7 @@ import { AuthedAdmin, ClientIp, CurrentAdmin, Roles } from '../auth/decorators';
 import { AdminGuard } from '../auth/guards';
 import { SessionService } from '../auth/session.service';
 import { RateLimitService } from '../core/rate-limit.service';
+import { requestOrigin } from '../common/request-origin';
 import { ResultsService } from '../results/results.service';
 import {
   AccessSettingsDto, CategoryDto, ChangePasswordDto, CodeDto, CreateUserDto, DisableMfaDto, DisplaySettingsDto,
@@ -124,7 +125,10 @@ export class EventController {
   constructor(private readonly event: EventService) {}
 
   @Get('settings')
-  settings(@ClientIp() ip: string) { return this.event.get(ip); }
+  settings(@ClientIp() ip: string, @Req() req: Request) {
+    const networks = (req.get('x-event-lan-networks') || '').split(',').map((value) => value.trim()).filter(Boolean);
+    return this.event.get(ip, networks);
+  }
 
   @Put('settings/event') @Roles('admin')
   updateEvent(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: EventSettingsDto) { return this.event.updateEvent(actor(a), ip, b); }
@@ -143,7 +147,7 @@ export class EventController {
 
   @Get('links')
   @Header('Cache-Control', 'no-store')
-  links(@CurrentAdmin() a: AuthedAdmin) { return this.event.links(a.role === 'admin'); }
+  links(@CurrentAdmin() a: AuthedAdmin, @Req() req: Request) { return this.event.links(a.role === 'admin', requestOrigin(req)); }
 }
 
 /** Results, exports (F13), reset, visitors (F14), stats and audit log. */
