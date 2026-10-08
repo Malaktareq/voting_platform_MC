@@ -23,6 +23,11 @@ body.tv #root {
   box-sizing: border-box;
 }
 
+/* Keep the brand close to the top edge and let the vote banner sit at the
+   bottom edge of the screen instead of leaving an oversized gutter. */
+html body.tv #root { padding-bottom: 0; }
+html body.tv .hdr { padding-top: 0; }
+
 /* ---------------------------------------------------------- decoration */
 
 body.tv .display-stage {
@@ -667,8 +672,10 @@ body.tv .cta-copy i {
 body.tv .qr {
   display: grid;
   place-items: center;
-  min-width: 10rem;
-  padding-left: 2.2rem;
+  box-sizing: border-box;
+  width: 9rem;
+  height: 9rem;
+  flex: 0 0 9rem;
   padding: .7rem;
   border: 0;
   border-radius: .8rem;
@@ -676,8 +683,10 @@ body.tv .qr {
 }
 
 body.tv .qr img {
-  width: clamp(5.8rem, 8vw, 7.5rem);
-  height: auto;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   border-radius: .15rem;
 }
 
@@ -773,6 +782,7 @@ body.tv .keyform button {
     height: auto;
     min-height: 100vh;
     padding: 1.4rem;
+    padding-bottom: 0;
   }
   body.tv .shape-gear,
   body.tv .shape-aqua,
@@ -789,6 +799,7 @@ body.tv .keyform button {
     padding-top: 0;
     justify-self: center;
   }
+  body.tv .hdr-brand { justify-self: start; }
   body.tv .brand-lockup { width: min(18rem, 72vw); }
   body.tv .hdr-title { padding-top: .5rem; }
   body.tv .hdr h1 { font-size: clamp(2.4rem, 8vw, 3rem); }

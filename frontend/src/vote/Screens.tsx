@@ -1,4 +1,5 @@
 import { useContext, useState } from 'react';
+import { api } from '../lib/api';
 import { accent, getLocation } from '../lib/util';
 import { useVote, VoteContext } from './VoteContext';
 
@@ -108,7 +109,19 @@ export function QrRequiredScreen() {
 }
 
 export function DoneScreen() {
-  const { t } = useVote();
+  const { t, setToast } = useVote();
+  const [leaving, setLeaving] = useState(false);
+  const backToLogin = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await api('/api/public/logout', { method: 'POST', body: {} });
+      window.location.assign('/');
+    } catch (e) {
+      setToast((e as Error).message);
+      setLeaving(false);
+    }
+  };
   return (
     <section className="panel center done">
       <div className="confetti" aria-hidden="true">
@@ -118,6 +131,9 @@ export function DoneScreen() {
       <h1 className="title">{t('doneTitle')}</h1>
       <p className="muted">{t('doneBody')}</p>
       <SummaryList />
+      <button className="btn btn-link done-back" type="button" onClick={backToLogin} disabled={leaving}>
+        <span aria-hidden="true">←</span> {t('backToLogin')}
+      </button>
     </section>
   );
 }
