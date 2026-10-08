@@ -253,12 +253,6 @@ export default function Dashboard() {
     reload();
   });
 
-  const showWinners = !!s.display.show_winners;
-  const toggleWinners = () => run('winners', async () => {
-    await saveSettings('display', { show_winners: !showWinners });
-    toast(showWinners ? d.winnersHidden : d.winnersShown);
-  });
-
   const saveSchedule = (opens: string, closes: string) => run('schedule', async () => {
     await saveSettings('voting', scheduleWindow(opens, closes));
     toast(opens || closes ? d.scheduleSaved : d.scheduleCleared); reload();
@@ -296,13 +290,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        {isAdmin && !voting.open && !waiting && (
-          <div className="winners-row">
-            <p className="muted small">{showWinners ? d.winnersOn : d.winnersHint}</p>
-            <button type="button" className={`btn ${showWinners ? '' : 'btn-primary'}`} disabled={busy} aria-busy={pending === 'winners'} onClick={toggleWinners}>
-              {pending === 'winners' ? d.updating : showWinners ? d.hideWinners : d.showWinners}</button>
-          </div>
-        )}
         <form className="schedule" onSubmit={(e) => { e.preventDefault(); void saveSchedule(opensAt, closesAt); }}>
           <div className="schedule-label"><b>{d.schedule}</b><span>{d.scheduleSub}</span></div>
           <label className="field"><span>{d.opens}</span><input className="input" type="datetime-local" disabled={!isAdmin} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} /></label>
