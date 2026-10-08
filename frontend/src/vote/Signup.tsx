@@ -242,6 +242,15 @@ export function RegisterScreen({
           />
         </label>
 
+        <label className="check login-consent">
+          <input
+            type="checkbox"
+            checked={form.consent}
+            onChange={(e) => setForm({ ...form, consent: e.currentTarget.checked })}
+          />
+          <span>{t('consent')}</span>
+        </label>
+
         {err && <p className="alert">{err}</p>}
 
         <button

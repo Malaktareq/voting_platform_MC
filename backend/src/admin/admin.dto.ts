@@ -62,6 +62,8 @@ export class DisplaySettingsDto {
 }
 
 export class ResetDto {
-  @IsString() confirm: string;
+  @IsString() @MinLength(1) @MaxLength(200) password: string;
   @IsOptional() @IsBoolean() purgeVisitors?: boolean;
 }
+
+export class RestartDto { @IsString() confirm: string }

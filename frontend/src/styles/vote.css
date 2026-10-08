@@ -1183,6 +1183,12 @@ body.vote .login-design-field input::placeholder {
   opacity: 1;
   font-weight: 500;
 }
+body.vote .login-consent {
+  margin: 0 0 8px;
+  color: #30366f;
+  font-size: 14px;
+  line-height: 1.4;
+}
 body.vote .login-design-submit {
   display: flex;
   height: 66px;

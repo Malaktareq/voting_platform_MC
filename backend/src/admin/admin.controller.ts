@@ -12,7 +12,7 @@ import { requestOrigin } from '../common/request-origin';
 import { ResultsService } from '../results/results.service';
 import {
   AccessSettingsDto, CategoryDto, ChangePasswordDto, CodeDto, CreateUserDto, DisableMfaDto, DisplaySettingsDto,
-  EventSettingsDto, ExhibitorFormDto, LoginDto, ResetDto, VotingSettingsDto,
+  EventSettingsDto, ExhibitorFormDto, LoginDto, ResetDto, RestartDto, VotingSettingsDto,
 } from './admin.dto';
 import { AdminAuthService } from './admin-auth.service';
 import { CatalogService, UploadedImage } from './catalog.service';
@@ -154,7 +154,8 @@ export class EventController {
 @Controller('api/admin')
 @UseGuards(AdminGuard)
 export class ReportsController {
-  constructor(private readonly reports: ReportsService, private readonly results: ResultsService) {}
+  constructor(private readonly reports: ReportsService, private readonly results: ResultsService,
+    private readonly auth: AdminAuthService, private readonly limits: RateLimitService) {}
 
   @Get('results')
   results_() { return this.results.snapshot(true); }
@@ -171,10 +172,14 @@ export class ReportsController {
   }
 
   @Post('results/reset') @HttpCode(200) @Roles('admin')
-  reset(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: ResetDto) { return this.reports.reset(actor(a), ip, b.confirm, b.purgeVisitors === true); }
+  async reset(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: ResetDto) {
+    await this.limits.check('results-reset-password', ip, 10, 300, 'Too many password attempts. Try again later.');
+    await this.auth.verifyCurrentPassword(a, b.password);
+    return this.reports.reset(actor(a), ip, b.purgeVisitors === true);
+  }
 
   @Post('results/restart') @HttpCode(200) @Roles('admin')
-  restart(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: ResetDto) { return this.reports.restart(actor(a), ip, b.confirm); }
+  restart(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: RestartDto) { return this.reports.restart(actor(a), ip, b.confirm); }
 
   @Get('visitors') @Roles('admin')
   @Header('Cache-Control', 'no-store')

@@ -31,8 +31,7 @@ export class ReportsService {
     return toCsv(rows);
   }
 
-  async reset(actor: string, ip: string, confirm: string, purgeVisitors: boolean) {
-    if (confirm !== 'RESET') throw new AppError(400, 'confirm_required', 'Type RESET to confirm.');
+  async reset(actor: string, ip: string, purgeVisitors: boolean) {
     const deleted = await this.ds.transaction('REPEATABLE READ', async (manager) => {
       // Excludes vote writes until snapshot, deletion and audit have committed together.
       await manager.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');

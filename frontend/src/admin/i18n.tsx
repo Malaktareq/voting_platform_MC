@@ -180,14 +180,14 @@ const en = {
     title: 'Results', sub: (v: string, p: string, t: string) => `${v} votes from ${p} verified visitors · updated ${t}`,
     csv: 'Export CSV', json: 'Export JSON', reset: 'Reset results…', votes: (n: string) => `${n} votes`,
     resetTitle: 'Reset results',
-    resetBody: 'This closes voting and permanently deletes every vote (e.g. after a rehearsal). Voting stays closed until you reopen it. A snapshot of the current counts is kept in the activity log. Export first if you need the data.',
-    purge: 'Also delete all visitor registrations (names & phone numbers)', typeReset: 'Type RESET',
+    resetBody: 'This closes voting and permanently deletes every vote. Voting stays closed until you reopen it. A snapshot of the current counts is kept in the activity log. Export first if you need the data.',
+    purge: 'Also delete all visitor registrations (names & phone numbers)', confirmReset: 'I understand that this permanently deletes all votes and closes voting.', adminPassword: 'Admin password',
     deleteAll: 'Delete all votes', resetDone: (n: number) => `Voting closed. Deleted ${n} votes.`,
   },
 
   visitors: {
-    title: 'Visitors', sub: 'Verified visitors. Phone numbers are encrypted and masked here; full numbers are only in the export, which is recorded in the activity log.',
-    exportOptIn: 'Export (opted-in only)', exportAll: 'Export all',
+    title: 'Visitors', sub: 'Exports include verified visitors and full phone numbers, and are recorded in the activity log. The first export includes only people who agreed to future event updates; Export all includes everyone, including those who did not agree.',
+    exportOptIn: 'Export update-consenting visitors', exportAll: 'Export all verified visitors',
     cols: ['Name', 'Phone', 'Verified', 'Votes', 'Outreach opt-in'], empty: 'No verified visitors yet.',
   },
 
@@ -407,14 +407,14 @@ const ar: Dict = {
     title: 'النتائج', sub: (v, p, t) => `${v} صوت من ${p} زائر موثَّق · آخر تحديث ${t}`,
     csv: 'تصدير CSV', json: 'تصدير JSON', reset: 'إعادة تعيين النتائج…', votes: (n) => `${n} صوت`,
     resetTitle: 'إعادة تعيين النتائج',
-    resetBody: 'سيؤدي هذا إلى إغلاق التصويت وحذف جميع الأصوات نهائيًا (مثلًا بعد تجربة). يبقى التصويت مغلقًا حتى تعيد فتحه. يتم حفظ نسخة من الأعداد الحالية في سجل النشاط. صدّر البيانات أولًا إذا كنت تحتاجها.',
-    purge: 'حذف جميع تسجيلات الزوار أيضًا (الأسماء وأرقام الهواتف)', typeReset: 'اكتب RESET',
+    resetBody: 'سيؤدي هذا إلى إغلاق التصويت وحذف جميع الأصوات نهائيًا. سيبقى التصويت مغلقًا حتى تعيد فتحه. تُحفظ نسخة من الأعداد الحالية في سجل النشاط. صدّر البيانات أولًا إذا كنت تحتاجها.',
+    purge: 'حذف جميع تسجيلات الزوار أيضًا (الأسماء وأرقام الهواتف)', confirmReset: 'أفهم أن هذا سيحذف جميع الأصوات نهائيًا ويغلق التصويت.', adminPassword: 'كلمة مرور المسؤول',
     deleteAll: 'حذف جميع الأصوات', resetDone: (n) => `تم إغلاق التصويت وحذف ${n} صوت.`,
   },
 
   visitors: {
-    title: 'الزوار', sub: 'الزوار الموثَّقون. أرقام الهواتف مشفّرة ومخفية هنا، وتظهر كاملة في ملف التصدير فقط، ويُسجَّل التصدير في سجل النشاط.',
-    exportOptIn: 'تصدير (الموافقون فقط)', exportAll: 'تصدير الكل',
+    title: 'الزوار', sub: 'تتضمن ملفات التصدير الزوار الموثَّقين وأرقام هواتفهم كاملة، ويُسجَّل التصدير في سجل النشاط. يتضمن التصدير الأول فقط من وافقوا على تلقي أخبار الفعاليات القادمة؛ أما تصدير جميع الزوار الموثَّقين فيشمل الجميع، حتى من لم يوافقوا.',
+    exportOptIn: 'تصدير الموافقين على أخبار الفعاليات', exportAll: 'تصدير جميع الزوار الموثَّقين',
     cols: ['الاسم', 'الهاتف', 'تاريخ التحقق', 'الأصوات', 'موافقة التواصل'], empty: 'لا يوجد زوار موثَّقون بعد.',
   },
 

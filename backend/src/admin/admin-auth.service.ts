@@ -96,6 +96,13 @@ export class AdminAuthService {
     return { sub: a.id, typ: 'admin' as const, role: a.role, tv: SessionService.tokenVersion(a.passwordHash) };
   }
 
+  async verifyCurrentPassword(admin: AuthedAdmin, password: string) {
+    const row = await this.admins.findOne({ where: { id: admin.id } });
+    if (!row || !(await verifyPassword(String(password || ''), row.passwordHash))) {
+      throw new AppError(401, 'bad_credentials', 'Current password is incorrect.');
+    }
+  }
+
   private async complete(ip: string, a: Admin, repo: Repository<Admin>, manager: EntityManager) {
     a.failedLogins = 0;
     a.lockedUntil = null;
