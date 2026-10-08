@@ -301,6 +301,12 @@ body.tv .col-4 {
   border-color: rgb(165 42 58 / 22%);
 }
 
+body.tv .col {
+  box-shadow:
+    0 .55rem 1.6rem -1.1rem rgb(0 0 85 / 34%),
+    inset 0 0 0 1px rgb(255 255 255 / 48%);
+}
+
 body.tv .col-head {
   display: flex;
   min-height: 4.2rem;
@@ -481,7 +487,10 @@ body.tv .row.leader-row {
   border: .08rem solid rgb(0 0 123 / 10%);
   border-radius: 1rem;
   background: var(--white);
+  box-shadow: 0 .25rem .8rem -.55rem rgb(0 0 85 / 28%);
 }
+
+body.tv .row.up .n { animation: none; }
 
 body.tv .rank {
   color: var(--navy);
@@ -566,7 +575,7 @@ body.tv .bar i {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent), white 22%));
-  transition: width .8s cubic-bezier(.2, .8, .2, 1);
+  transition: none;
 }
 
 body.tv .n {
