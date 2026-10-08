@@ -3,6 +3,9 @@ export type Lang = 'en' | 'ar';
 
 export const T = {
   en: {
+    otpNeedNewCode: 'No signed-in session was found. Request a new code below to continue.',
+    otpRecoveryUnavailable: 'We could not check whether verification completed. Check your connection, then check your session before requesting another code.',
+    checkSession: 'Check my session', requestNewCode: 'Request a new code',
     loginTitle: 'Pick your', loginTitleAccent: 'favourite makers',
     qrTitle: 'Scan the venue QR code',
     awards: 'Community Awards', switchTo: 'عربي',
@@ -38,6 +41,9 @@ export const T = {
     catDone: 'Done',
   },
   ar: {
+    otpNeedNewCode: 'لم نعثر على جلسة تسجيل دخول. اطلب رمزاً جديداً أدناه للمتابعة.',
+    otpRecoveryUnavailable: 'تعذّر التحقق مما إذا اكتمل تسجيل الدخول. تحقق من اتصالك ثم تحقق من جلستك قبل طلب رمز آخر.',
+    checkSession: 'تحقق من جلستي', requestNewCode: 'اطلب رمزاً جديداً',
     loginTitle: 'اختر', loginTitleAccent: 'صُنّاعك المفضّلين',
     qrTitle: 'امسح رمز QR في مكان الفعالية',
     awards: 'جوائز المجتمع', switchTo: 'English',
