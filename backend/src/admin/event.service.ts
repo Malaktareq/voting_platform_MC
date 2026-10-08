@@ -62,6 +62,7 @@ export class EventService {
     if (b.open !== undefined) patch.open = !!b.open;
     if (b.opens_at !== undefined) patch.opens_at = iso(b.opens_at);
     if (b.closes_at !== undefined) patch.closes_at = iso(b.closes_at);
+    if (b.ended_at !== undefined) patch.ended_at = iso(b.ended_at);
     if (patch.open !== true) return this.save(actor, ip, 'voting', patch);
     // Reopening and hiding the announcement either commit together or both roll back.
     const display = { show_winners: false };

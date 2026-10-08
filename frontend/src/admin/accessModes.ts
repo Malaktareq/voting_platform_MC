@@ -4,7 +4,7 @@ import type { useLang } from './i18n';
 type T = ReturnType<typeof useLang>['t'];
 
 /** On-site access modes (F11), in display order; labels live in the language file. */
-export const ACCESS_MODES = ['ip_or_geo', 'ip_and_geo', 'off'];
+export const ACCESS_MODES = ['ip_or_geo', 'ip_and_geo', 'geo', 'off'];
 
 export const modeLabel = (t: T, mode: string) => t.modes[mode]?.[0] ?? mode;
 export const usesIp = (mode: string) => ['ip', 'ip_or_geo', 'ip_and_geo'].includes(mode);

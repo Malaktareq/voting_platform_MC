@@ -35,7 +35,7 @@ export interface AdminCategory extends Category { is_active: boolean; exhibitor_
 export interface AdminExhibitor extends Exhibitor { is_active: boolean; votes: number; image_id: string | null }
 export interface Settings {
   event: { name: string; tagline: string; venue: string; public_url?: string };
-  voting: { open: boolean; opens_at: string | null; closes_at: string | null };
+  voting: { open: boolean; opens_at: string | null; closes_at: string | null; ended_at?: string | null };
   access: { mode: string; allowed_cidrs: string[]; geofence: { lat: number | null; lng: number | null; radius_m: number | null; max_accuracy_m: number | null } };
   display: { key: string | null; show_counts: boolean; show_winners?: boolean };
 }

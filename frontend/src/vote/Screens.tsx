@@ -49,13 +49,13 @@ export function SummaryList() {
 }
 
 export function ClosedScreen() {
-  const { t, data, session, reload } = useVote();
+  const { t, data, reload } = useVote();
   const v = data.voting;
-  const ended = v.reason === 'ended' || (v.reason === 'closed' && !!session && Object.keys(session.votes).length > 0);
+  const ended = v.reason === 'ended';
   return (
     <section className="panel center">
       <div className="glyph glyph-clock" aria-hidden="true" />
-      <h1 className="title">{v.reason === 'not_started' ? t('notStarted') : t('closedTitle')}</h1>
+      <h1 className="title">{v.reason === 'not_started' ? t('notStarted') : ended ? t('endedTitle') : t('closedTitle')}</h1>
       <p className="muted">{ended ? t('endedBody') : t('closedBody')}</p>
       <SummaryList />
       <button className="btn btn-ghost" onClick={() => reload()}>{t('retry')}</button>

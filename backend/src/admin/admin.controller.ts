@@ -173,6 +173,9 @@ export class ReportsController {
   @Post('results/reset') @HttpCode(200) @Roles('admin')
   reset(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: ResetDto) { return this.reports.reset(actor(a), ip, b.confirm, b.purgeVisitors === true); }
 
+  @Post('results/restart') @HttpCode(200) @Roles('admin')
+  restart(@ClientIp() ip: string, @CurrentAdmin() a: AuthedAdmin, @Body() b: ResetDto) { return this.reports.restart(actor(a), ip, b.confirm); }
+
   @Get('visitors') @Roles('admin')
   @Header('Cache-Control', 'no-store')
   visitors(@Query('limit') limit?: string, @Query('offset') offset?: string) { return this.reports.visitors(limit, offset); }

@@ -3,7 +3,7 @@ export const ACCESS_MODES: AccessMode[] = ['off', 'ip', 'geo', 'ip_or_geo', 'ip_
 
 /** public_url: optional fixed QR address; empty uses PUBLIC_URL or the current request origin. */
 export interface EventSettings { name: string; tagline: string; venue: string; public_url: string }
-export interface VotingSettings { open: boolean; opens_at: string | null; closes_at: string | null }
+export interface VotingSettings { open: boolean; opens_at: string | null; closes_at: string | null; ended_at?: string | null }
 export interface AccessSettings {
   mode: AccessMode;
   allowed_cidrs: string[];

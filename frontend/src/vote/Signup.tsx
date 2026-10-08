@@ -102,7 +102,7 @@ export function RegisterScreen({
     e.preventDefault();
 
     const f = { ...form, name: form.name.trim(), phone: form.phone.trim() };
-    if (f.name.length < 2) { nameRef.current?.focus(); setErr(`${t('name')} ✱`); return; }
+    if (f.name.split(/\s+/).filter(Boolean).length < 2) { nameRef.current?.focus(); setErr(t('fullNameError')); return; }
     if (!f.phone) { phoneRef.current?.focus(); setErr(`${t('phone')} ✱`); return; }
 
     setBusy(true);
@@ -130,6 +130,11 @@ export function RegisterScreen({
         await reload();
         return;
       }
+
+      if (e2.code === 'bad_name') { setErr(t('fullNameError')); return; }
+      if (e2.code === 'duplicate_name') { setErr(t('duplicateNameError')); return; }
+      if (e2.code === 'phone_attached') { setErr(t('phoneAttachedError')); return; }
+      if (e2.code === 'bad_phone') { setErr(t('phoneInvalidError')); return; }
 
       setErr(e2.message);
     } finally {
@@ -197,7 +202,7 @@ export function RegisterScreen({
             required
             minLength={2}
             maxLength={80}
-            placeholder={t('name')}
+            placeholder={t('namePh')}
             value={form.name}
             onChange={(e) =>
               setForm({

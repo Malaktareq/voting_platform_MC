@@ -43,6 +43,7 @@ export class VotingSettingsDto {
   @IsOptional() @IsBoolean() open?: boolean;
   @IsOptional() @IsString() opens_at?: string | null;
   @IsOptional() @IsString() closes_at?: string | null;
+  @IsOptional() @IsString() ended_at?: string | null;
 }
 export class GeofenceDto {
   @IsNumber() @Min(-90) @Max(90) lat: number;
