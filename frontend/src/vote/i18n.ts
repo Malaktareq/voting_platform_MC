@@ -3,6 +3,7 @@ export type Lang = 'en' | 'ar';
 
 export const T = {
   en: {
+    loginTitle: 'Pick your', loginTitleAccent: 'favourite makers',
     qrTitle: 'Scan the venue QR code',
     awards: 'Community Awards', switchTo: 'عربي',
     heroKicker: 'The Maker Collective 2026', heroTitle: 'Pick your favourite makers',
@@ -35,6 +36,7 @@ export const T = {
     catDone: 'Done',
   },
   ar: {
+    loginTitle: 'اختر', loginTitleAccent: 'صُنّاعك المفضّلين',
     qrTitle: 'امسح رمز QR في مكان الفعالية',
     awards: 'جوائز المجتمع', switchTo: 'English',
     heroKicker: 'ملتقى الصُنّاع ٢٠٢٦', heroTitle: 'اختر صُنّاعك المفضّلين',
