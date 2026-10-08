@@ -45,7 +45,7 @@ NestJS app servers keep no state: sessions are signed cookies, OTPs and settings
 
 Recommended mode is *Wi-Fi OR location*; the team can tighten to *Wi-Fi only* or *Wi-Fi AND location*. The check runs when the OTP is requested **and again on every vote**. Per-IP limits recognise the venue's shared NAT address, so 1,000 phones behind one IP are not throttled.
 
-**Identity & duplicates (F6, F12).** Each phone number must be verified by a 6-digit SMS code (5-min expiry, single use, 5 attempts, stored only as an HMAC). Numbers are normalised (`079…`, `+96279…`, `00962…`, Arabic digits → one identity). The database enforces `UNIQUE(phone)` and `UNIQUE(visitor, category)`: a tested race of 8 simultaneous submissions produces exactly one vote. Re-sending the same vote is idempotent (safe retries on flaky Wi-Fi); a different vote is rejected.
+**Identity & duplicates (F6, F12).** Each phone number must be verified by a 6-digit SMS code (5-min expiry, single use, 5 attempts, stored only as an HMAC). Numbers are normalised (`079…`, `+96279…`, `00962…`, Arabic digits → one identity). The database enforces `UNIQUE(phone)` and `UNIQUE(visitor, category)`: a tested race of 8 simultaneous submissions produces exactly one vote. Duplicate category votes return 409 already_voted; the client restores the saved session.
 
 **Abuse limits.** Per phone: 30 s resend cooldown, 5 codes/hour. Per IP: separate budgets for venue and non-venue addresses. Jordan mobile-number validation reduces SMS-pumping risk.
 

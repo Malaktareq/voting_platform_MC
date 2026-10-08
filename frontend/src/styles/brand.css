@@ -17,7 +17,14 @@
   cursor: pointer;
 }
 .public-language:focus-visible { outline: 3px solid #7f32d9; outline-offset: 3px; }
-html body.vote .topbar { padding-inline-end: 128px; }
+body.vote .public-language {
+  inset-inline-start: auto;
+  inset-inline-end: auto;
+  left: auto;
+  right: max(16px, env(safe-area-inset-right));
+}
+html body.vote .topbar { padding-left: 16px; padding-right: 128px; }
+html[dir="rtl"] body.vote .topbar { flex-direction: row-reverse; }
 html body.tv .hdr { padding-top: 58px; }
 body.vote.vote-login .maker-brand { left: 8px; right: auto; transform: none; max-width: calc(100vw - 148px); }
 body.vote.vote-login .maker-brand img { max-width: 100%; }

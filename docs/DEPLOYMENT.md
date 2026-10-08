@@ -107,7 +107,7 @@ Daily `pg_dump` (or managed PITR). The `APP_SECRET` must be backed up separately
 
 ```bash
 createdb mc2026_test
-cd backend && TEST_DATABASE_URL=postgres://mc:mc@localhost:5432/mc2026_test npm test   # 30 Jest unit + e2e tests
+cd backend && TEST_DATABASE_URL=postgres://mc:mc@localhost:5432/mc2026_test npm test   # current Jest unit + e2e suite; use an isolated test database
 OTP_DEV_ECHO=true npm start &   # then, with voting open, from the repo root:
 node scripts/loadtest.js 1000 250 http://localhost:3000            # 1,000-visitor load test
 node scripts/simulate.js 60 10                                      # realistic demo traffic

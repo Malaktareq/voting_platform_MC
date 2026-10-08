@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../lib/api';
+import { api, type ApiError } from '../lib/api';
 import type { GeoPoint, PublicState, VisitorSession } from '../lib/types';
 import { getLocation, safeStore, useBodyClass } from '../lib/util';
 import '../styles/vote.css';
 import { Ballot } from './Ballot';
-import { makeT } from './i18n';
+import { errorText, makeT } from './i18n';
 import { PublicLanguageButton, usePublicLanguage } from '../lib/public-language';
 import { ClosedScreen, DoneScreen, ErrorScreen, OffsiteScreen } from './Screens';
 import { checkLocation as requestLocationCheck, registrationGate } from './access';
@@ -24,7 +24,7 @@ export default function VotePage() {
 
   const [data, setData] = useState<PublicState | null>(null);
   const [session, setSession] = useState<VisitorSession | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [location, setLocationState] = useState<GeoPoint | null>(null);
   const locationRef = useRef<GeoPoint | null>(null);
   const setLocation = (loc: GeoPoint | null) => { locationRef.current = loc; setLocationState(loc); };
@@ -69,7 +69,7 @@ export default function VotePage() {
       if (s.session) setChallenge(null);
       setLoadError(null);
     } catch (e) {
-      setLoadError((e as Error).message);
+      setLoadError(e as ApiError);
     }
   }, []);
 
@@ -115,7 +115,7 @@ export default function VotePage() {
           if (!active) return;
           setQrEntry('none');
           if (error.code?.startsWith('vote_qr')) cleanEntryFromUrl();
-          setToast(error.code?.startsWith('vote_qr') ? tRef.current('qrExpired') : error.message);
+          setToast(errorText(tRef.current, error));
         });
     };
     enter();
@@ -159,7 +159,7 @@ export default function VotePage() {
   if (qrEntry === 'checking') {
     screen = <div className="loading"><span className="spinner" /></div>;
   } else if (!data) {
-    screen = loadError ? <ErrorScreen message={loadError} /> : <div className="loading"><span className="spinner" /></div>;
+    screen = loadError ? <ErrorScreen message={errorText(t, loadError)} /> : <div className="loading"><span className="spinner" /></div>;
   } else if (!data.voting.open) {
     screen = <ClosedScreen />;
   } else if (session) {
@@ -180,8 +180,8 @@ export default function VotePage() {
       <PublicLanguageButton lang={lang} setLang={setLang} />
       {!online && <div className="offline">{t('offline')}</div>}
       <header className="topbar">
-        <a className="brand" href="/" aria-label="MC2026 Awards home">
-          <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
+        <a className="brand" href="/" aria-label={t('brandHome')}>
+          <img className="brand-lockup" src="/mc-logo-lockup.png" alt={t('brandAlt')} />
           <span className="brand-text"><b>MC2026</b> <span>{t('awards')}</span></span>
         </a>
       </header>

@@ -1,6 +1,7 @@
 import { useContext, useState } from 'react';
-import { api } from '../lib/api';
+import { api, type ApiError } from '../lib/api';
 import { accent, getLocation } from '../lib/util';
+import { errorText } from './i18n';
 import { useVote, VoteContext } from './VoteContext';
 
 export function ErrorScreen({ message }: { message: string }) {
@@ -20,7 +21,9 @@ export function Hero() {
     <div className="hero">
       <p className="kicker">{t('heroKicker')}</p>
       <h1 className="title">{t('heroTitle')}</h1>
+      {data.event.tagline && <p className="hero-tagline">{data.event.tagline}</p>}
       <p className="hero-body">{t('heroBody', data.categories.length)}</p>
+      {data.event.venue && <p className="hero-venue">📍 {data.event.venue}</p>}
       <div className="hero-cats">
         {data.categories.map((c, i) => (
           <span key={c.id} className="chip" style={accent(i)}><i aria-hidden="true" />{c.name}</span>
@@ -76,7 +79,7 @@ export function OffsiteScreen() {
       if (await checkLocation(loc)) return;
       setMsg(t('locOutside'));
     } catch (e: any) {
-      setMsg(e && e.code === 1 ? t('locDenied') : e?.message || t('locOutside'));
+      setMsg(e && e.code === 1 ? t('locDenied') : t('locUnavailable'));
     } finally {
       setBusy(false);
     }
@@ -118,7 +121,7 @@ export function DoneScreen() {
       await api('/api/public/logout', { method: 'POST', body: {} });
       window.location.assign('/');
     } catch (e) {
-      setToast((e as Error).message);
+      setToast(errorText(t, e as ApiError));
       setLeaving(false);
     }
   };

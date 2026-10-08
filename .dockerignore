@@ -6,3 +6,5 @@ docs
 backend/test
 scripts
 .git
+backups
+deploy/certs

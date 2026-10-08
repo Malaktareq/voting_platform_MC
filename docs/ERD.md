@@ -33,6 +33,8 @@ erDiagram
   EXHIBITOR_CATEGORIES {
     int exhibitor_id PK, FK
     int category_id PK, FK
+    text exhibitor_name_key "normalized maker identity"
+    text project_key "normalized project identity"
   }
   IMAGES {
     uuid id PK
@@ -101,15 +103,16 @@ erDiagram
 | A vote must name an exhibitor that is actually in that category | composite FK `votes(exhibitor_id, category_id) → exhibitor_categories` |
 | One visitor record per phone number | `UNIQUE (phone_hash)` on `visitors` |
 | Unique usernames / category slugs | `UNIQUE` constraints |
+| Unique maker/project identity within a category | Deferred `UNIQUE (category_id, exhibitor_name_key, project_key)`; triggers synchronize normalized identities |
 | Tally speed | index `votes (category_id, exhibitor_id)` |
 
-Because these rules live in PostgreSQL rather than in application code, they hold even under concurrent double-taps, multiple replicas and replayed requests (covered by `test/api.test.js` → "concurrent double-submits").
+Because these rules live in PostgreSQL, they hold under concurrent double-taps, multiple replicas and replayed requests (covered by `backend/test/app.e2e.spec.ts`).
 
 ## `settings` documents
 
 | key | shape |
 |---|---|
-| `event` | `{ name, tagline, venue }` |
-| `voting` | `{ open: bool, opens_at: ISO?, closes_at: ISO? }` |
+| `event` | `{ name, tagline, venue, public_url }` |
+| `voting` | `{ open: bool, opens_at: ISO?, closes_at: ISO?, ended_at: ISO? }` |
 | `access` | `{ mode: off\|ip\|geo\|ip_or_geo\|ip_and_geo, allowed_cidrs: string[], geofence: { lat, lng, radius_m, max_accuracy_m } }` |
-| `display` | `{ key: string, show_counts: bool }` |
+| `display` | `{ key: string, show_counts: bool, show_winners: bool }` |

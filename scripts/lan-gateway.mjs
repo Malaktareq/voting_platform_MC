@@ -2,7 +2,7 @@
 /**
  * LAN gateway — run the event on a local server, with phones on the same Wi-Fi.
  *
- *   phone ──HTTPS──▶ this gateway (port 443) ──HTTP──▶ Docker nginx (127.0.0.1:3000) ──▶ app
+ *   phone ──HTTPS──▶ this gateway (port 8443) ──HTTP──▶ Docker nginx (127.0.0.1:3000) ──▶ app
  *
  * Why it exists:
  *  - Phones only share GPS with HTTPS pages, so the gateway serves HTTPS with a local certificate.
@@ -11,7 +11,7 @@
  *    on in X-Forwarded-For, which nginx trusts only in LAN mode (deploy/real-ip.lan.conf).
  *
  * Usage:  node scripts/lan-gateway.mjs
- * Env:    LAN_PORT (443), LAN_HTTP_PORT (80, redirects to HTTPS), LAN_TARGET (http://127.0.0.1:3000)
+ * Env:    LAN_PORT (8443), LAN_HTTP_PORT (8080, redirects to HTTPS), LAN_TARGET (http://127.0.0.1:3000)
  * No dependencies. Needs `openssl` once, to create the certificate in deploy/certs/.
  */
 import { execFileSync } from 'node:child_process';
@@ -22,8 +22,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const PORT = Number(process.env.LAN_PORT || 443);
-const HTTP_PORT = Number(process.env.LAN_HTTP_PORT || 80);
+const PORT = Number(process.env.LAN_PORT || 8443);
+const HTTP_PORT = Number(process.env.LAN_HTTP_PORT || 8080);
 const TARGET = new URL(process.env.LAN_TARGET || 'http://127.0.0.1:3000');
 const CERT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../deploy/certs');
 const KEY = path.join(CERT_DIR, 'lan-key.pem');
@@ -126,12 +126,29 @@ function forward(req, res) {
 const adapters = lanInterfaces();
 const ips = [...new Set(adapters.map((item) => item.address))];
 const networks = [...new Set(adapters.map((item) => item.network))];
+// Repeated `make` calls can reuse a gateway left running in another terminal.
+const existingGateway = await new Promise(resolve => {
+  const probe = https.get({ hostname: '127.0.0.1', port: PORT, path: '/healthz', rejectUnauthorized: false, timeout: 1500 }, response => {
+    response.resume();
+    resolve(response.headers['x-mc2026-gateway'] === '1');
+  });
+  probe.on('timeout', () => probe.destroy());
+  probe.on('error', () => resolve(false));
+});
+if (existingGateway) {
+  console.log(`MC2026 HTTPS gateway is already running on port ${PORT}; reusing it.`);
+  for (const ip of ips) console.log(`  https://${ip}${PORT === 443 ? '' : `:${PORT}`}/admin`);
+  process.exit(0);
+}
 ensureCertificate(ips);
 
-https.createServer({ key: readFileSync(KEY), cert: readFileSync(CERT) }, forward)
+https.createServer({ key: readFileSync(KEY), cert: readFileSync(CERT) }, (req, res) => {
+  res.setHeader('X-MC2026-Gateway', '1');
+  forward(req, res);
+})
   .on('error', (e) => {
     console.error(e.code === 'EADDRINUSE' || e.code === 'EACCES'
-      ? `Port ${PORT} is not available. Try another one, e.g. LAN_PORT=8443 node scripts/lan-gateway.mjs`
+      ? `Port ${PORT} is occupied by another process or access is denied. Stop the conflicting process, or run: make lan LAN_PORT=${PORT === 9443 ? 10443 : 9443}`
       : e.message);
     process.exit(1);
   })

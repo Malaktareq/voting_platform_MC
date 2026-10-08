@@ -12,7 +12,7 @@ flowchart LR
   SYS -- results, exports, visitor list, audit log --> ADM
   SYS -- live standings --> TV([Public display])
 ```
-\* location only when the visitor is not on the venue network and the rules allow geofencing.
+\* Location is required according to the configured access mode; `ip_and_geo` requires GPS even on the venue network.
 
 ## Level 1 — Processes and data stores
 
@@ -23,7 +23,7 @@ flowchart TB
   TV([Public display])
   GW([SMS gateway])
 
-  P1[1.0 Check on-site access<br/>IP range / geofence]
+  P1[1.0 Validate rotating QR entry<br/>and on-site access: IP / geofence]
   P2[2.0 Register & send OTP]
   P3[3.0 Verify OTP & issue session]
   P4[4.0 Cast vote]
@@ -41,7 +41,8 @@ flowchart TB
   D7[(D7 audit_log)]
   BUS{{Redis pub/sub}}
 
-  V -- IP, location --> P1
+  V -- QR token, IP, location --> P1
+  P1 -- short-lived QR grant --> V
   D1 -- access rules --> P1
   P1 -- allowed? --> P2
   V -- name, phone --> P2
@@ -60,8 +61,8 @@ flowchart TB
   BUS --> P5
   D4 -- counts --> P5
   D5 -- names, photos --> P5
-  P5 -- SSE snapshot --> TV
-  P5 -- SSE snapshot --> ADM
+  P5 -- SSE or polling snapshot and rotating QR --> TV
+  P5 -- SSE or polling snapshot --> ADM
   ADM -- credentials, TOTP --> P8
   D6 --> P8
   P8 -- admin session --> ADM

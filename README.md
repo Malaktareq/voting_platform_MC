@@ -1,118 +1,114 @@
-# MC2026 Community Awards — Digital Voting System
+﻿# Maker Collective 2026 — Digital Voting System
 
-On-site, SMS-verified voting for the **Maker Collective 2026** community awards: visitors scan a QR code, verify their phone with a one-time SMS code, cast one vote in each award category, and watch the standings update live on the big screen.
+On-site voting with phone verification, an admin console, and live results for the venue screen.
 
-**Stack:** NestJS 11 (TypeScript) · React 19 + Vite · PostgreSQL 16 · Redis (optional) · Docker
+## Features
 
-![Live results screen](docs/screenshots/tv.png)
+- **Visitor voting:** exhibitor photos, descriptions, category browsing, maker/project search, confirmation and progress; one vote per verified phone per category.
+- **Venue access:** rotating QR entry, configurable Wi-Fi/IP and GPS checks, and a blocked-attempt counter.
+- **Phone verification:** console OTP demo with expiry, resend cooldown and attempt limits; real SMS delivery is pending an assigned provider.
+- **Admin console:** manage categories, exhibitors and photos; configure access, open/close voting, schedule in Amman time, and announce winners.
+- **Live results:** protected TV display, live updates with polling fallback, rotating voting QR, and CSV/JSON exports.
+- **Security:** optional admin MFA, AES-256-GCM encryption of stored names/phones, database duplicate prevention, audit log, and transactional results reset. Authorized visitor exports are decrypted by the backend and audited.
+- **English / Arabic:** remembered language selection and RTL layouts across admin, visitor and results pages.
+- **HTTPS venue access:** local HTTPS gateway for phone GPS, HTTP-to-HTTPS redirects and original client-IP forwarding.
 
-<p>
-<img src="docs/screenshots/1-register.png" width="23%"> <img src="docs/screenshots/3-ballot.png" width="23%"> <img src="docs/screenshots/4-confirm.png" width="23%"> <img src="docs/screenshots/7-done-ar.png" width="23%">
-</p>
+## Languages and frameworks
 
-![Admin overview](docs/screenshots/admin-overview.png)
-
-| Visitor page `/` | Live results `/display` | Admin console `/admin` |
-|---|---|---|
-| Mobile, English/Arabic, QR → name + phone → SMS code → vote in each category | TV layout, real-time (SSE), protected, "Scan to vote" QR | Exhibitors, categories, open/close, access rules, export, MFA |
-
-## Repository layout
-
-```
-backend/    NestJS API — modules, guards, DTOs, TypeORM entities + migration, Jest tests, seed data
-frontend/   React SPA (Vite + TypeScript) — visitor page, TV dashboard, admin console
-scripts/    simulate.js (demo traffic) · loadtest.js (1,000-user load test)
-deploy/     nginx.conf (load balancer, SSE-aware)
-docs/       write-up, architecture, security, [deployment](docs/DEPLOYMENT.md), [local LAN setup](docs/LAN_EVENT_SETUP.md), load-test results
-Dockerfile  one image: builds React, builds Nest, Nest serves the React app
-```
-
-## Quick start
-
-**Docker (everything included):**
-```bash
-cp .env.example .env        # set APP_SECRET, POSTGRES_PASSWORD, ADMIN_PASSWORD
-docker compose up -d --build  # builds app, starts DB/Redis/nginx, runs seed data once
-```
-The seed job loads fake categories and teams only when the database has no exhibitors yet. To wipe and reload demo data later, run `docker compose run --rm seed node dist/cli/seed.js --force`.
-
-**Local development** (Node 20+, PostgreSQL; Redis optional):
-```bash
-createdb mc2026
-# API
-cd backend
-npm install
-cat > .env <<'EOF'
-DATABASE_URL=postgres://localhost:5432/mc2026
-APP_SECRET=local-dev-secret-change-me-0123456789
-OTP_DEV_ECHO=true
-EOF
-npm run build && npm run seed && npm start        # http://localhost:3000  (admin / admin12345 in dev)
-# React (second terminal)
-cd frontend && npm install && npm run dev         # http://localhost:5173 — proxies /api to :3000
-```
-For a single-port setup, run `npm run build` in `frontend/` — the API then serves the React app itself on :3000.
-
-With `OTP_DEV_ECHO=true` (ignored in production) the SMS code is shown on screen, so the full flow works without an SMS gateway.
-
-Then in **/admin**: Overview → **Open voting** → open the **display link** on a TV → scan the QR with a phone.
-
-## Pitch-day demo script (≈6 min)
-
-1. **Admin** (laptop): show exhibitors with photos & categories; add one live with a photo. Open the live screen link on the projector.
-2. **Overview → Open voting.** Show the QR poster.
-3. **Phone** (on stage, mirrored): scan → switch to Arabic and back → name + number → code → vote in each category → confetti. The projector updates within a second.
-4. **Anti-fraud**: try a 2nd vote in the same category (blocked, shows "you voted for…"); in *Event & access* switch to *Wi-Fi only* and remove the venue range → the phone is refused as off-site; restore.
-5. **Scale**: `node scripts/simulate.js 200 20` — the dashboard animates as 200 visitors vote; mention the 1,000-user load-test numbers.
-6. **Close voting** → screen flips to *Final results* with winners → **Export CSV**. Show two-factor login and the audit log.
-
-## Requirement traceability
-
-| # | Requirement | Where |
-|---|---|---|
-| F1 | Exhibitor listing with photo, name, description, category | `frontend/src/vote/Ballot.tsx` — cards, category tabs, search |
-| F2 | One selection per category | Ballot UI + DB `UNIQUE(visitor_id, category_id)` |
-| F3 | Confirmation + which categories are done | Confirm sheet, toast, progress meter, ticked tabs, summary |
-| F4 | Mobile-friendly via QR | Mobile-first page; QR on admin overview, printable poster, and on the TV |
-| F5 | No password — name + phone | `Signup.tsx` → `POST /api/public/otp/request` |
-| F6 | SMS OTP before voting | `VisitorService.requestOtp/verifyOtp`, pluggable `SmsService` |
-| F7 | Live per-category leaderboard | `@Sse` stream in `DisplayController` → `DisplayPage.tsx` |
-| F8 | Big-screen layout | Viewport-scaled TV design, high contrast |
-| F9 | Exhibitor management + photos + categories | `CatalogService` + Admin → Exhibitors / Categories |
-| F10 | Open/close voting | Admin → Overview (manual + schedule); enforced in `VisitorService.assertCanVote` |
-| F11 | On-site restriction (IP range / location) | `AccessService` + Admin → Event & access |
-| F12 | One verified phone = one vote per category | OTP + normalised phone HMAC + DB constraints (race-tested) |
-| F13 | Export final counts | CSV / JSON export (`ReportsController`) |
-| F14 | Securely store visitor name + phone | AES-256-GCM at rest, HMAC lookup, masked UI, audited export |
-| NFR | 1,000 users, no SPOF, stateless, portable, documented | Load test, Redis-optional design, Docker, `docs/` |
-
-## Documentation
-
-| Document | Contents |
+| Choice | Why |
 |---|---|
-| [Technical write-up](docs/TECHNICAL_WRITEUP.md) | Architecture, stack, access control & anti-fraud, deployment, scaling evidence |
-| [Architecture](docs/ARCHITECTURE.md) | Components, code layout, sequence diagrams, statelessness, failure modes |
-| [ERD](docs/ERD.md) | Data model and database-enforced rules |
-| [DFD](docs/DFD.md) | Context + level-1 data flows, personal-data flow |
-| [Security](docs/SECURITY.md) | Authentication, authorization matrix, anti-fraud layers, privacy, pilot checklist |
-| [Design decisions](docs/DESIGN_DECISIONS.md) | Why each major choice was made |
-| [Deployment](docs/DEPLOYMENT.md) | Docker / bare metal / cloud, venue network setup, event-day runbook |
-| [Load-test results](docs/loadtest-results.json) | Raw output of `scripts/loadtest.js` |
+| **TypeScript / JavaScript** | Type checking across frontend/backend; JavaScript for deployment and demo scripts. |
+| **React + Vite** | Reusable interfaces, hot reload, and optimized production builds. |
+| **NestJS on Node.js** | Organized API modules, request validation, authentication guards and live event streams. |
+| **PostgreSQL + SQL / TypeORM** | Durable data, migrations, transactions and constraints that prevent duplicate votes. |
+| **Redis** | Shared rate limits and notifications between app replicas. |
+| **HTML / CSS** | Responsive mobile/TV layouts and RTL styling. |
+| **Docker Compose + nginx** | Reproducible setup, reverse proxy and multiple application replicas. |
 
-## Commands
+## Run locally
 
-| Where | Command | What it does |
-|---|---|---|
-| backend | `npm run build && npm start` | Build and run the API (migrations apply automatically) |
-| backend | `npm run seed [-- --force]` | Load mock categories + 22 fake teams/projects, with artwork for the first 12 |
-| backend | `npm run create-admin -- <user> <password> [admin\|viewer]` | Create/reset an admin account |
-| backend | `npm test` | 30 Jest tests: unit + Supertest end-to-end against real PostgreSQL (`TEST_DATABASE_URL`) |
-| frontend | `npm run dev` / `npm run build` | Vite dev server / production build |
-| root | `node scripts/simulate.js [visitors] [concurrency]` | Realistic demo traffic through the full OTP flow |
-| root | `node scripts/loadtest.js [visitors] [concurrency] [baseUrls]` | 1,000-user load test with correctness and live fan-out checks |
+Install **Docker / Docker Compose, Node.js 20+, GNU Make and OpenSSL**. Run the commands in a POSIX-compatible shell (Linux/macOS, or Git Bash/WSL on Windows). On first setup, copy `.env.example` to `.env`, then set:
 
-## Notes
+```dotenv
+APP_SECRET=<random secret of at least 32 characters>
+POSTGRES_PASSWORD=<database password>
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=<strong password of at least 10 characters>
+NODE_ENV=development
+COOKIE_SECURE=true
+SMS_PROVIDER=console
+OTP_DEV_ECHO=true
+```
 
-- Category names and exhibitors in the seed are **placeholders** (spec §6) — rename/replace them in the admin console.
-- Brand colours/fonts are an original placeholder palette; swap in the official CPF Makerspace guidelines via `frontend/src/styles/brand.css`.
-- Production checklist before the live pilot: [`docs/SECURITY.md` §6](docs/SECURITY.md#6-before-the-live-pilot--checklist).
+```sh
+make
+```
+
+On Windows, you can also run `node scripts/start-lan.mjs` directly. See [operation, verification and backup commands](docs/OPERATIONS.md).
+
+This starts Docker and the HTTPS gateway on port **8443** by default. Keep the terminal open and use the printed HTTPS address, adding `/admin` to sign in. The gateway uses a local self-signed certificate; follow the **[HTTPS/LAN guide](docs/LAN_EVENT_SETUP.md)** for first-time certificate setup. For automatic link detection, leave both `PUBLIC_URL` and the admin's saved public address empty; otherwise set the override to the correct HTTPS address.
+
+The configured admin is created only when no admin account exists; changing `.env` does not reset an existing password. Review the seeded demo categories/exhibitors, configure venue access and open voting. Open the display link from the dashboard; visitors scan its QR to vote. With the demo settings above, OTP codes are logged to the console and returned by the API for display on screen.
+
+Use the gateway's printed address for every page:
+
+- Voting: `https://<server-ip>:8443/`
+- Admin: `https://<server-ip>:8443/admin`
+- Results: open the protected display link from the admin dashboard on the same HTTPS address.
+
+For deployment, configure the assigned SMS provider and production settings: **[deployment guide](docs/DEPLOYMENT.md)**. Seeded names and event dates must be confirmed before the event.
+
+## ERD — database relationships
+
+```mermaid
+erDiagram
+    IMAGES |o--o{ EXHIBITORS : photo
+    EXHIBITORS ||--o{ EXHIBITOR_CATEGORIES : enters
+    CATEGORIES ||--o{ EXHIBITOR_CATEGORIES : includes
+    VISITORS ||--o{ OTP_CHALLENGES : requests
+    VISITORS ||--o{ VOTES : casts
+    CATEGORIES ||--o{ VOTES : receives
+    EXHIBITORS ||--o{ VOTES : receives
+    EXHIBITOR_CATEGORIES ||--o{ VOTES : validates_pair
+    ADMINS {
+        int id PK
+    }
+    SETTINGS {
+        text key PK
+    }
+    AUDIT_LOG {
+        bigint id PK
+    }
+```
+
+PostgreSQL enforces unique phone hashes, one vote per visitor/category, and valid exhibitor/category pairs. Admins, settings and audit records are independent tables; audit actors are text, not foreign keys. **[Detailed ERD and fields](docs/ERD.md)**.
+
+## DFD — main data flows
+
+```mermaid
+flowchart LR
+    V([Visitor]) -->|QR token, name, phone, OTP, location| AUTH[1. Verify entry, access and identity]
+    AUTH -->|Encrypted identity and hashed OTP records| DB[(PostgreSQL)]
+    DB -->|Rules and verification data| AUTH
+    AUTH -->|Log OTP message| CONSOLE[Server console]
+    AUTH -->|Demo OTP in API response| V
+    AUTH -.->|Future delivery integration| SMS([Assigned SMS provider])
+    SMS -.->|SMS code| V
+    AUTH -->|Verified session| V
+    V -->|Session, location, category and exhibitor| VOTE[2. Validate and save vote]
+    DB -->|Access rules and valid choices| VOTE
+    VOTE -->|Vote transaction| DB
+    VOTE -->|Updated session| V
+    VOTE -->|Change notification| R[(Redis)]
+    R --> RESULTS[3. Read and publish standings]
+    DB -->|Counts and catalog| RESULTS
+    RESULTS -->|Live stream or snapshot| TV([TV display and admin dashboard])
+    RESULTS -->|Rotating entry QR| TV
+    A([Admin]) -->|Authenticated changes and export requests| ADMIN[4. Manage event and reports]
+    ADMIN -->|Catalog, settings and audit writes| DB
+    DB -->|Results and visitor records| ADMIN
+    ADMIN -->|Reports and exports| A
+    ADMIN -->|Change notification| R
+```
+
+**[Detailed DFD](docs/DFD.md)** · **[Architecture](docs/ARCHITECTURE.md)**

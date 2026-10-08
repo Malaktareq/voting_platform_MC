@@ -97,7 +97,7 @@ sequenceDiagram
     V->>A: POST /votes {categoryId, exhibitorId, location}
     A->>DB: INSERT … ON CONFLICT (visitor, category) DO NOTHING
     A->>R: PUBLISH vote
-    A-->>V: 201 + updated ballot (or 200 idempotent retry / 409 already voted)
+    A-->>V: 201 + updated ballot (409 already_voted on duplicates; client restores saved session)
   end
 ```
 
@@ -138,7 +138,7 @@ Replicas can be killed, restarted or added at any time; nginx retries the next u
 
 | Failure | Effect | Mitigation |
 |---|---|---|
-| One app replica dies | In-flight requests on it fail | LB health checks + `proxy_next_upstream`; client retries votes (server-side idempotent) |
+| One app replica dies | In-flight requests on it fail | LB health checks + `proxy_next_upstream`; client reconciles duplicates with the saved session |
 | Redis down | Live updates only reach screens on the same replica until the 10 s snapshot; rate limits become per-replica | Automatic in-memory fallback — **voting continues** (verified: 50/50 visitors completed with Redis stopped) |
 | Venue Wi-Fi blip | Phone loses a response | Client retries with backoff; duplicate vote returns 200 not 409; offline banner |
 | SMS gateway slow/down | OTP not delivered | 8 s timeout, clear error, resend after 30 s; provider is swappable by env var |

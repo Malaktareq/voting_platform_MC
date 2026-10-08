@@ -830,3 +830,6 @@ body.tv .keyform button {
     border-top: .08rem solid rgb(0 0 123 / 24%);
   }
 }
+
+/* Language button sits in the status row beside the Live pill instead of floating over it. */
+body.tv .hdr-status .public-language { position: static; inset: auto; min-height: 40px; min-width: 0; flex: none; }

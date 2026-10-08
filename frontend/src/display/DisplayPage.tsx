@@ -82,6 +82,8 @@ export default function DisplayPage() {
       const snapshot = await api<ResultsSnapshot>('/api/display/results');
       if (generation !== bootGeneration.current) return;
       receive(snapshot);
+      // Signed-in admin without a key: pin this screen with a display cookie so it survives admin logout.
+      if (!key) void api('/api/display/pair', { method: 'POST', body: {} }).catch(() => { /* not an admin; the display cookie is already in use */ });
       setPhase('live');
     } catch (e) {
       if (generation !== bootGeneration.current) return;
@@ -139,7 +141,6 @@ export default function DisplayPage() {
 
   return (
     <>
-      {languageButton}
       <div className="display-stage" aria-hidden="true">
         <span className="shape shape-gear" />
         <span className="shape shape-yellow" />
@@ -153,11 +154,12 @@ export default function DisplayPage() {
           <img className="brand-lockup" src="/mc-logo-lockup.png" alt="The Maker Collective 2026" />
         </div>
         <div className="hdr-title">
-          <p className="kicker">{snap.event.name || 'The Maker Collective 2026'}</p>
+          <p className="kicker">{[snap.event.name || 'The Maker Collective 2026', snap.event.venue].filter(Boolean).join(' · ')}</p>
           <h1><span>{text.titleLead}</span> {text.titleRest}</h1>
-          <p className="dek">{text.subtitle}</p>
+          <p className="dek">{snap.event.tagline || text.subtitle}</p>
         </div>
         <div className="hdr-status">
+          {languageButton}
           {snap.show_counts && <Stat lang={lang} label={text.votes} value={snap.totals.votes} prev={prev?.totals.votes} />}
           {finalMode ? <span className="pill final">{text.final}</span>
             : snap.voting.open ? <span className={`pill live${stale || connection !== 'live' ? ' stale' : ''}`}><i />{connection === 'live' && !stale ? text.live : connection === 'polling' && !stale ? text.updating : text.disconnected}</span>

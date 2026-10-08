@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { recoverOtpSession, verifyOtp, type OtpOutcome } from './otp';
 
 import { api, ApiError } from '../lib/api';
-import type { VisitorSession } from '../lib/types';
+import { errorText } from './i18n';
 import { useVote } from './VoteContext';
 
 export interface FormState {
@@ -85,7 +86,7 @@ export function RegisterScreen({
   setForm: (f: FormState) => void;
   setChallenge: (c: Challenge) => void;
 }) {
-  const { t, location, setOnSite, setLocation, reload } = useVote();
+  const { t, data, location, setOnSite, setLocation, reload } = useVote();
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -136,7 +137,7 @@ export function RegisterScreen({
       if (e2.code === 'phone_attached') { setErr(t('phoneAttachedError')); return; }
       if (e2.code === 'bad_phone') { setErr(t('phoneInvalidError')); return; }
 
-      setErr(e2.message);
+      setErr(errorText(t, e2));
     } finally {
       setBusy(false);
     }
@@ -163,11 +164,11 @@ export function RegisterScreen({
       {/* Branding */}
       <header
         className="maker-brand"
-        aria-label="The Maker Collective 2026"
+        aria-label={t('brandAlt')}
       >
         <img
           src="/assets/maker-logo.png"
-          alt="The Maker Collective 2026 — organized by Crown Prince Foundation"
+          alt={t('brandAltFull')}
         />
       </header>
 
@@ -186,6 +187,8 @@ export function RegisterScreen({
           <br />
           {t('loginTitleAccent')}
         </h1>
+        {data.event.tagline && <p className="login-tagline">{data.event.tagline}</p>}
+        {data.event.venue && <p className="login-venue">📍 {data.event.venue}</p>}
 
         <label className="login-design-field" htmlFor="f-name">
           <span className="sr-only">{t('name')}</span>
@@ -283,25 +286,39 @@ export function OtpScreen({
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
+  const [recovery, setRecovery] = useState<'code' | 'new_code' | 'unconfirmed'>('code');
+
+  const receive = (result: OtpOutcome) => {
+    if (result.status === 'verified') {
+      setChallenge(null);
+      setSession(result.session);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    setRecovery(result.status);
+    setCode('');
+    setErr(t(result.status === 'new_code' ? 'otpNeedNewCode' : 'otpRecoveryUnavailable'));
+  };
 
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   useEffect(() => { inputRef.current?.focus(); }, [challenge.id]);
   const resendIn = Math.max(0, Math.ceil((challenge.resendAt - now) / 1000));
 
   const verify = async (value: string) => {
-    if (value.length !== 6 || busy) return;
+    if (submitting.current || recovery === 'new_code' || (recovery === 'code' && value.length !== 6)) return;
+    submitting.current = true;
     setBusy(true); setErr(null);
     try {
-      const r = await api<{ session: VisitorSession }>('/api/public/otp/verify', { method: 'POST', body: { challengeId: challenge.id, code: value }, retries: 2 });
-      setChallenge(null);
-      setSession(r.session);
-      window.scrollTo({ top: 0 });
+      receive(recovery === 'unconfirmed' ? await recoverOtpSession() : await verifyOtp(challenge.id, value));
     } catch (ex) {
       const e2 = ex as ApiError;
-      setErr(e2.message);
+      setErr(errorText(t, e2));
       if (['otp_expired', 'otp_locked', 'otp_invalid'].includes(e2.code || '')) setCode('');
+      if (['otp_expired', 'otp_locked'].includes(e2.code || '')) setRecovery('new_code');
       inputRef.current?.select();
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -320,13 +337,19 @@ export function OtpScreen({
   };
 
   const resend = async () => {
-    setErr(null);
+    if (submitting.current || resendIn > 0) return;
+    submitting.current = true;
+    setBusy(true); setErr(null);
     try {
       const r = await api<OtpResponse>('/api/public/otp/request', { method: 'POST', body: { ...form, location: location ?? undefined } });
       setChallenge(toChallenge(r));
       setCode('');
+      setRecovery('code');
     } catch (ex) {
-      setErr((ex as Error).message);
+      setErr(errorText(t, ex as ApiError));
+    } finally {
+      submitting.current = false;
+      setBusy(false);
     }
   };
 
@@ -358,7 +381,8 @@ export function OtpScreen({
           autoComplete="one-time-code"
           pattern="[0-9]*"
           maxLength={6}
-          required
+          required={recovery === 'code'}
+          disabled={busy || recovery !== 'code'}
           aria-label={t('otpTitle')}
           dir="ltr"
           value={code}
@@ -370,9 +394,9 @@ export function OtpScreen({
         <button
           className="btn btn-primary btn-block"
           type="submit"
-          disabled={busy}
+          disabled={busy || recovery === 'new_code'}
         >
-          {busy ? t('verifying') : t('verify')}
+          {busy ? t('verifying') : recovery === 'unconfirmed' ? t('checkSession') : t('verify')}
         </button>
       </form>
 
@@ -389,12 +413,12 @@ export function OtpScreen({
         <button
           className="btn btn-ghost"
           type="button"
-          disabled={busy || resendIn > 0}
+          disabled={busy || resendIn > 0 || recovery === 'unconfirmed'}
           onClick={resend}
         >
           {resendIn > 0
             ? t('resendIn', resendIn)
-            : t('resend')}
+            : t(recovery === 'new_code' ? 'requestNewCode' : 'resend')}
         </button>
       </div>
     </section>

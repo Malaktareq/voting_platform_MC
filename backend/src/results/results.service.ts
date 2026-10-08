@@ -8,7 +8,7 @@ import { AllSettings, VotingState } from '../settings/settings.types';
 export interface Standing { id: number; name: string; project: string; booth: string; image: string | null; votes: number; rank: number }
 export interface CategoryResult { id: number; slug: string; name: string; description: string; total: number; standings: Standing[] }
 export interface ResultsSnapshot {
-  event: { name: string; tagline: string };
+  event: { name: string; tagline: string; venue: string };
   voting: VotingState;
   show_counts: boolean;
   show_winners: boolean;
@@ -102,7 +102,7 @@ export class ResultsService implements OnModuleDestroy {
     const settingsRows = await db.query('SELECT key, value FROM settings');
     const st = Object.fromEntries(settingsRows.map((row: any) => [row.key, row.value])) as AllSettings;
     return {
-      event: { name: st.event.name, tagline: st.event.tagline },
+      event: { name: st.event.name, tagline: st.event.tagline, venue: st.event.venue },
       voting: this.settings.votingState(st),
       show_counts: st.display.show_counts !== false,
       show_winners: st.display.show_winners === true,
