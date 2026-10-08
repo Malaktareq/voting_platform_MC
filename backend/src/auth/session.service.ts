@@ -11,12 +11,12 @@ import { config } from '../config/config';
  *  mc_v  visitor          — issued after SMS OTP verification (12 h)
  *  mc_ap admin pre-MFA    — password OK, waiting for TOTP (5 min)
  *  mc_a  admin            — fully authenticated (8 h)
- *  mc_d  display          — TV dashboard, obtained with the display key (7 d)
+ *  mc_d  display          — TV dashboard, obtained with the display key (24 h)
  */
 export type TokenType = 'visitor' | 'admin' | 'admin_pending' | 'display' | 'vote_entry';
 export interface TokenPayload { sub?: string | number; typ: TokenType; role?: string; tv?: string; kv?: string; ip?: string }
 
-const TTL_MS: Record<string, number> = { '5m': 300e3, '10m': 600e3, '8h': 8 * 3600e3, '12h': 12 * 3600e3, '7d': 7 * 86400e3 };
+const TTL_MS: Record<string, number> = { '5m': 300e3, '10m': 600e3, '8h': 8 * 3600e3, '12h': 12 * 3600e3, '24h': 24 * 3600e3 };
 
 @Injectable()
 export class SessionService {

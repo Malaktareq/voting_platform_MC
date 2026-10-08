@@ -12,7 +12,7 @@ import * as path from 'path';
 import { DataSource } from 'typeorm';
 import { dataSourceOptions } from '../database/data-source';
 import { runMigrationsLocked } from '../database/migrate';
-import { DEFAULT_SETTINGS } from '../settings/settings.service';
+import { DEFAULT_SETTINGS, sealDisplay } from '../settings/settings.service';
 
 export const CATEGORIES = [
   { slug: 'innovation', name: 'Most Innovative Project', description: 'The boldest new idea or technique on the floor.' },
@@ -51,7 +51,7 @@ export async function main() {
   try {
     await runMigrationsLocked(ds);
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-      const val = k === 'display' ? { ...v, key: crypto.randomBytes(18).toString('base64url') } : v;
+      const val = k === 'display' ? sealDisplay({ ...v, key: crypto.randomBytes(18).toString('base64url') }) : v;
       await ds.query('INSERT INTO settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, val]);
     }
     const imgDir = path.join(__dirname, '..', '..', 'seed', 'images');

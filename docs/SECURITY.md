@@ -6,7 +6,7 @@
 |---|---|---|
 | **Visitor** | Name + mobile number, then a 6-digit **SMS OTP** (no password, F5/F6) | `mc_v` cookie — HS256 JWT, HttpOnly, SameSite=Strict, Secure (prod), 12 h |
 | **Admin** | Username + password (scrypt N=16384), then **TOTP** (RFC 6238) if enrolled | `mc_ap` pre-MFA cookie (5 min, cannot call any API) → `mc_a` session cookie, 8 h |
-| **Public display (TV)** | Secret display key from the admin console link/QR, exchanged once for a cookie; key removed from the URL bar | `mc_d` cookie, 7 days, bound to the current key |
+| **Public display (TV)** | Secret display key from the admin console link/QR, exchanged once for a cookie; key removed from the URL bar | `mc_d` cookie, 24 hours, bound to the current key |
 
 ### OTP details
 - 6 random digits (`crypto.randomInt`), valid **5 minutes**, **single use**, max **5 wrong attempts** then the challenge locks.

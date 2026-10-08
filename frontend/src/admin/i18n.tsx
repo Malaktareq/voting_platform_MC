@@ -68,7 +68,8 @@ const en = {
     share: 'Share', votePage: 'Voting page', voteLink: 'Voting link', openPage: 'Open page', openPageHint: 'Opens the voting page on this computer. As a signed-in admin you can log in and vote to test it, without scanning the QR.',
     localWarn: 'Phones cannot open localhost. Open the admin page through the event’s LAN address; voting links will follow it automatically.',
     screen: 'Results screen (TV)', screenNote: 'Private link. Anyone who has it can see the live results.',
-    copyLink: 'Copy link', openScreen: 'Open screen', screenLink: 'Screen link',
+    copyLink: 'Copy link', copyKey: 'Copy key only', regenKey: 'Regenerate key', regenerating: 'Regenerating…', keyRegenerated: 'New screen key created. Old links and unlocked screens no longer work.',
+    confirmRegen: 'Create a new screen key? The old key and every screen link already shared will stop working, and screens that were unlocked with it will ask for the new key.', screenKey: 'Screen key', openScreen: 'Open screen', screenLink: 'Screen link',
   },
 
   modes: {
@@ -291,7 +292,8 @@ const ar: Dict = {
     share: 'المشاركة', votePage: 'صفحة التصويت', voteLink: 'رابط التصويت', openPage: 'فتح الصفحة', openPageHint: 'يفتح صفحة التصويت على هذا الجهاز. بصفتك مسؤولًا مسجّلًا يمكنك تسجيل الدخول والتصويت للتجربة دون مسح رمز QR.',
     localWarn: 'لا تستطيع الهواتف فتح localhost. افتح لوحة الإدارة عبر عنوان الشبكة المحلية للفعالية؛ وستستخدم روابط التصويت العنوان نفسه تلقائيًا.',
     screen: 'شاشة النتائج (التلفاز)', screenNote: 'رابط خاص. يمكن لأي شخص يملكه رؤية النتائج المباشرة.',
-    copyLink: 'نسخ الرابط', openScreen: 'فتح الشاشة', screenLink: 'رابط الشاشة',
+    copyLink: 'نسخ الرابط', copyKey: 'نسخ المفتاح فقط', regenKey: 'إنشاء مفتاح جديد', regenerating: 'جارٍ الإنشاء…', keyRegenerated: 'تم إنشاء مفتاح جديد للشاشة. الروابط القديمة والشاشات المفتوحة بها لن تعمل بعد الآن.',
+    confirmRegen: 'هل تريد إنشاء مفتاح جديد للشاشة؟ سيتوقف المفتاح القديم وجميع الروابط التي تمت مشاركتها، وستطلب الشاشات المفتوحة به المفتاح الجديد.', screenKey: 'مفتاح الشاشة', openScreen: 'فتح الشاشة', screenLink: 'رابط الشاشة',
   },
 
   modes: {
