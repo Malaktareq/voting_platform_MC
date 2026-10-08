@@ -6,7 +6,7 @@ import { safeEqual } from '../common/crypto.util';
 import { AppError } from '../common/http-error';
 import { requestOrigin } from '../common/request-origin';
 import { ClientIp } from '../auth/decorators';
-import { DisplayOrAdminGuard } from '../auth/guards';
+import { AdminGuard, DisplayOrAdminGuard } from '../auth/guards';
 import { SessionService } from '../auth/session.service';
 import { AuditService } from '../core/audit.service';
 import { RateLimitService } from '../core/rate-limit.service';
@@ -39,6 +39,20 @@ export class DisplayController {
       await this.audit.record('display', 'display_auth_failed', {}, ip);
       throw new AppError(401, 'bad_key', 'Invalid display key.');
     }
+    this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '7d');
+    return { ok: true };
+  }
+
+  /**
+   * A signed-in admin opening the screen directly gets the same 7-day display cookie the key link gives,
+   * so the screen keeps running after the admin signs out.
+   */
+  @Post('pair')
+  @HttpCode(200)
+  @UseGuards(AdminGuard)
+  async pair(@Res({ passthrough: true }) res: Response) {
+    const s = await this.settings.getAll(true);
+    if (!s.display.key) return { ok: false };
     this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '7d');
     return { ok: true };
   }

@@ -36,7 +36,6 @@ export default function AdminApp() {
 function AdminRoot() {
   const { t, err } = useLang();
   const [me, setMe] = useState<AdminUser | null | undefined>(undefined);
-  const [tip, setTip] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
 
@@ -60,20 +59,19 @@ function AdminRoot() {
 
   if (loadError) return <div className="card"><p className="alert" role="alert">{err(loadError)}</p><button className="btn" onClick={loadMe}>{t.common.retry}</button></div>;
   if (me === undefined) return <Spinner />;
-  if (me === null) return <Login initialMessage={sessionExpired ? t.shell.sessionExpired : null} onDone={(rec) => { setSessionExpired(false); setTip(rec); loadMe(); }} />;
+  if (me === null) return <Login initialMessage={sessionExpired ? t.shell.sessionExpired : null} onDone={() => { setSessionExpired(false); loadMe(); }} />;
 
   return (
     <AdminProvider me={me} setMe={setMe}>
-      <Shell showMfaTip={tip} />
+      <Shell />
     </AdminProvider>
   );
 }
 
-function Shell({ showMfaTip }: { showMfaTip: boolean }) {
+function Shell() {
   const { t, err } = useLang();
   const { me, isAdmin, setMe, toast } = useAdmin();
   const { busy, run } = useAction();
-  useEffect(() => { if (showMfaTip) toast(t.shell.mfaTip, 'warn'); }, [showMfaTip, toast, t]);
 
   return (
     <div className="layout">

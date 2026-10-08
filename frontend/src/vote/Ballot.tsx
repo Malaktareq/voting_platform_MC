@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import type { Category, Exhibitor, VisitorSession } from '../lib/types';
 import { accent, getLocation, initials } from '../lib/util';
+import { errorText } from './i18n';
 import { useVote } from './VoteContext';
 
 function Photo({ e, className }: { e: Exhibitor; className: string }) {
@@ -162,7 +163,7 @@ function ConfirmSheet({ e, cat, index, onClose }: { e: Exhibitor; cat: Category;
             return await cast(l, true);
           } catch { setErr(t('locDenied')); setBusy(null); return; }
         }
-        setErr(e2.message);
+        setErr(errorText(t, e2));
       }
       setBusy(null);
     } finally { submitting.current = false; setBusy(null); }

@@ -1542,6 +1542,7 @@ body.vote:not(.vote-login) .tab.active {
   border-color: var(--navy);
   background: linear-gradient(105deg, var(--purple), var(--navy));
   box-shadow: 0 12px 22px -15px rgba(0,0,123,.9);
+  color: #fff;
 }
 body.vote:not(.vote-login) .cat {
   position: relative;
@@ -1645,3 +1646,7 @@ body.vote .sheet-panel {
   body.vote .otp { font-size: 30px; letter-spacing: .32em; }
   body.vote .tab { padding-inline: 10px; }
 }
+
+/* Event tagline and venue from admin settings */
+body.vote .hero-tagline, body.vote .login-tagline { margin: 0 0 8px; font-weight: 700; color: var(--purple); }
+body.vote .hero-venue, body.vote .login-venue { margin: 0 0 12px; font-size: 14px; color: var(--ink-2); }

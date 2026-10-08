@@ -147,7 +147,11 @@ function ExhibitorForm({ exhibitor, categories, onClose, onSaved }: {
                   toast(x.photoBad, 'err');
                   e.target.value = ''; setFile(null); setPreview(hasSavedPhoto ? exhibitor!.image : null); return;
                 }
-                setFile(fl); setRemovePhoto(false); setPreview(URL.createObjectURL(fl));
+                setFile(fl); setRemovePhoto(false);
+                // data: URL, not blob: — the page CSP only allows self and data: images.
+                const reader = new FileReader();
+                reader.onload = () => setPreview(String(reader.result));
+                reader.readAsDataURL(fl);
               }} /></label>
             <p className="muted small">{x.photoHint}</p>
             {exhibitor?.image && !removePhoto && <button type="button" className="btn btn-sm btn-ghost" disabled={busy} style={{ alignSelf: 'flex-start' }} onClick={() => {

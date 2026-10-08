@@ -20,7 +20,7 @@ export interface GeoPoint { lat: number; lng: number; accuracy: number }
 export interface Standing { id: number; name: string; project: string; booth: string; image: string | null; votes: number; rank: number }
 export interface CategoryResult extends Category { total: number; standings: Standing[] }
 export interface ResultsSnapshot {
-  event: { name: string; tagline: string };
+  event: { name: string; tagline: string; venue: string };
   voting: VotingState;
   show_counts: boolean;
   show_winners: boolean;

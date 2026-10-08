@@ -2,7 +2,7 @@ import { api } from '../../lib/api';
 import { useLang } from '../i18n';
 import { Spinner, useLoad } from '../ui';
 
-interface Entry { id: string; actor: string; action: string; detail: Record<string, unknown>; ip: string | null; created_at: string }
+interface Entry { id: string; actor: string; action: string; ip: string | null; created_at: string }
 
 export default function Audit() {
   const { t } = useLang();
@@ -21,18 +21,12 @@ export default function Audit() {
           <table className="table">
             <thead><tr>{a.cols.map((h) => <th key={h}>{h}</th>)}</tr></thead>
             <tbody>
-              {data.entries.length === 0 && <tr><td colSpan={5} className="empty">{a.empty}</td></tr>}
+              {data.entries.length === 0 && <tr><td colSpan={4} className="empty">{a.empty}</td></tr>}
               {data.entries.map((e) => (
                 <tr key={e.id}>
                   <td className="nowrap">{t.when(e.created_at)}</td>
                   <td><bdi>{e.actor}</bdi></td>
                   <td><span className={`pill ${/failed|reset|deleted|purged|disabled/.test(e.action) ? 'warn' : ''}`}>{a.actions[e.action] ?? e.action.replace(/_/g, ' ')}</span></td>
-                  <td className="mono small">{Object.keys(e.detail || {}).length ? (
-                    <details className="audit-details">
-                      <summary>{a.details}</summary>
-                      <pre dir="ltr">{JSON.stringify(e.detail, null, 2)}</pre>
-                    </details>
-                  ) : '—'}</td>
                   <td className="mono small"><span dir="ltr">{e.ip || ''}</span></td>
                 </tr>
               ))}

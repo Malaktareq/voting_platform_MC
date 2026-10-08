@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { recoverOtpSession, verifyOtp, type OtpOutcome } from './otp';
 
 import { api, ApiError } from '../lib/api';
+import { errorText } from './i18n';
 import { useVote } from './VoteContext';
 
 export interface FormState {
@@ -85,7 +86,7 @@ export function RegisterScreen({
   setForm: (f: FormState) => void;
   setChallenge: (c: Challenge) => void;
 }) {
-  const { t, location, setOnSite, setLocation, reload } = useVote();
+  const { t, data, location, setOnSite, setLocation, reload } = useVote();
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -136,7 +137,7 @@ export function RegisterScreen({
       if (e2.code === 'phone_attached') { setErr(t('phoneAttachedError')); return; }
       if (e2.code === 'bad_phone') { setErr(t('phoneInvalidError')); return; }
 
-      setErr(e2.message);
+      setErr(errorText(t, e2));
     } finally {
       setBusy(false);
     }
@@ -163,11 +164,11 @@ export function RegisterScreen({
       {/* Branding */}
       <header
         className="maker-brand"
-        aria-label="The Maker Collective 2026"
+        aria-label={t('brandAlt')}
       >
         <img
           src="/assets/maker-logo.png"
-          alt="The Maker Collective 2026 — organized by Crown Prince Foundation"
+          alt={t('brandAltFull')}
         />
       </header>
 
@@ -186,6 +187,8 @@ export function RegisterScreen({
           <br />
           {t('loginTitleAccent')}
         </h1>
+        {data.event.tagline && <p className="login-tagline">{data.event.tagline}</p>}
+        {data.event.venue && <p className="login-venue">📍 {data.event.venue}</p>}
 
         <label className="login-design-field" htmlFor="f-name">
           <span className="sr-only">{t('name')}</span>
@@ -310,7 +313,7 @@ export function OtpScreen({
       receive(recovery === 'unconfirmed' ? await recoverOtpSession() : await verifyOtp(challenge.id, value));
     } catch (ex) {
       const e2 = ex as ApiError;
-      setErr(e2.message);
+      setErr(errorText(t, e2));
       if (['otp_expired', 'otp_locked', 'otp_invalid'].includes(e2.code || '')) setCode('');
       if (['otp_expired', 'otp_locked'].includes(e2.code || '')) setRecovery('new_code');
       inputRef.current?.select();
@@ -343,7 +346,7 @@ export function OtpScreen({
       setCode('');
       setRecovery('code');
     } catch (ex) {
-      setErr((ex as Error).message);
+      setErr(errorText(t, ex as ApiError));
     } finally {
       submitting.current = false;
       setBusy(false);

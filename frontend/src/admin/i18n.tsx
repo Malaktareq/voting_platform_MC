@@ -85,7 +85,7 @@ const en = {
 
   settings: {
     title: 'Settings',
-    tabs: { access: 'On-site access', event: 'Event & screen', account: 'Account & team', activity: 'Activity log' } as Record<string, string>,
+    tabs: { access: 'On-site access', event: 'Event & screen', account: 'Account', activity: 'Activity log' } as Record<string, string>,
   },
 
   access: {
@@ -127,7 +127,7 @@ const en = {
     setup: 'Set up two-factor', settingUp: 'Setting up…',
     password: 'Change password', passwordIntro: 'Changing your password signs out every other session.',
     newPassword: 'New password (10+ chars)', update: 'Update password', updating: 'Updating…', changed: 'Password changed',
-    team: 'Team accounts', cols: ['User', 'Role', '2FA', 'Last sign-in', ''], on: 'On', off: 'Off',
+    team: 'Team accounts', cols: ['User', 'Role', 'Last sign-in', ''], on: 'On', off: 'Off',
     roles: { admin: 'Administrator', viewer: 'Viewer (read-only)' } as Record<string, string>,
     loadingTeam: 'Loading team accounts…', teamError: (e: string) => `Could not load team accounts: ${e}. Use Retry to try again.`,
     noTeam: 'No team accounts found.', remove: 'Remove', removing: 'Removing…', confirmRemove: (u: string) => `Remove ${u}?`,
@@ -137,13 +137,16 @@ const en = {
 
   audit: {
     intro: 'The last 100 sign-ins, changes and exports, newest first.',
-    cols: ['When', 'Who', 'Action', 'Details', 'IP'], empty: 'No activity yet.', details: 'View details',
+    cols: ['When', 'Who', 'Action', 'IP'], empty: 'No activity yet.', details: 'View details',
     loadError: (e: string) => `Could not refresh the activity log: ${e}`, showingOld: ' Showing previously loaded entries.',
     actions: {} as Record<string, string>,
   },
 
   cat: {
-    title: 'Award categories', sub: 'MC2026 has three awards. Names are placeholders until the Makerspace team confirms them.',
+    title: 'Award categories',
+    manage: 'Exhibitors', membersTitle: (n: string) => `Exhibitors in “${n}”`, membersHint: 'Tick an exhibitor to add them to this category; untick to remove them. Changes save immediately.',
+    noExhibitors: 'No exhibitors yet.', membersSaved: 'Category updated', checkAll: 'Check all', clearAll: 'Clear all',
+    bulkSkipped: (n: number) => `${n} exhibitor(s) could not be changed (a visible exhibitor must keep at least one category).`,
     add: '+ Add category', noDescription: 'No description', exhibitors: (n: number) => `${n} exhibitors`, hidden: 'Hidden',
     confirmDelete: (n: string) => `Delete category “${n}”?`,
     confirmForce: (n: string) => `This category already has votes. Permanently delete “${n}” and discard all its votes? This also removes its exhibitor assignments and may leave active exhibitors without a category. This cannot be undone.`,
@@ -305,7 +308,7 @@ const ar: Dict = {
 
   settings: {
     title: 'الإعدادات',
-    tabs: { access: 'التحقق من الموقع', event: 'الفعالية والشاشة', account: 'الحساب والفريق', activity: 'سجل النشاط' },
+    tabs: { access: 'التحقق من الموقع', event: 'الفعالية والشاشة', account: 'الحساب', activity: 'سجل النشاط' },
   },
 
   access: {
@@ -347,7 +350,7 @@ const ar: Dict = {
     setup: 'إعداد التحقق بخطوتين', settingUp: 'جارٍ الإعداد…',
     password: 'تغيير كلمة المرور', passwordIntro: 'تغيير كلمة المرور يُنهي جميع الجلسات الأخرى.',
     newPassword: 'كلمة المرور الجديدة (10 أحرف على الأقل)', update: 'تحديث كلمة المرور', updating: 'جارٍ التحديث…', changed: 'تم تغيير كلمة المرور',
-    team: 'حسابات الفريق', cols: ['المستخدم', 'الدور', 'التحقق بخطوتين', 'آخر تسجيل دخول', ''], on: 'مفعّل', off: 'غير مفعّل',
+    team: 'حسابات الفريق', cols: ['المستخدم', 'الدور', 'آخر تسجيل دخول', ''], on: 'مفعّل', off: 'غير مفعّل',
     roles: { admin: 'مسؤول', viewer: 'مشاهد (عرض فقط)' },
     loadingTeam: 'جارٍ تحميل حسابات الفريق…', teamError: (e) => `تعذّر تحميل حسابات الفريق: ${e}. اضغط إعادة المحاولة.`,
     noTeam: 'لا توجد حسابات.', remove: 'إزالة', removing: 'جارٍ الإزالة…', confirmRemove: (u) => `إزالة ${u}؟`,
@@ -357,7 +360,7 @@ const ar: Dict = {
 
   audit: {
     intro: 'آخر 100 عملية تسجيل دخول وتعديل وتصدير، الأحدث أولًا.',
-    cols: ['الوقت', 'المستخدم', 'الإجراء', 'التفاصيل', 'IP'], empty: 'لا يوجد نشاط بعد.', details: 'عرض التفاصيل',
+    cols: ['الوقت', 'المستخدم', 'الإجراء', 'IP'], empty: 'لا يوجد نشاط بعد.', details: 'عرض التفاصيل',
     loadError: (e) => `تعذّر تحديث سجل النشاط: ${e}`, showingOld: ' يتم عرض السجلات المحمّلة سابقًا.',
     actions: {
       login: 'تسجيل دخول', login_failed: 'فشل تسجيل الدخول', mfa_failed: 'فشل رمز التحقق', mfa_enabled: 'تفعيل التحقق بخطوتين',
@@ -370,7 +373,10 @@ const ar: Dict = {
   },
 
   cat: {
-    title: 'فئات الجوائز', sub: 'يضم ملتقى الصنّاع 2026 ثلاث جوائز. الأسماء مؤقتة حتى يعتمدها فريق المختبر.',
+    title: 'فئات الجوائز',
+    manage: 'العارضون', membersTitle: (n) => `العارضون في «${n}»`, membersHint: 'ضع إشارة لإضافة العارض إلى هذه الفئة، وأزلها لإزالته منها. تُحفظ التغييرات فورًا.',
+    noExhibitors: 'لا يوجد عارضون بعد.', membersSaved: 'تم تحديث الفئة', checkAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل',
+    bulkSkipped: (n: number) => `تعذّر تغيير ${n} عارض (يجب أن يبقى العارض الظاهر في فئة واحدة على الأقل).`,
     add: '+ إضافة فئة', noDescription: 'لا يوجد وصف', exhibitors: (n) => `${n} عارض`, hidden: 'مخفية',
     confirmDelete: (n) => `حذف الفئة «${n}»؟`,
     confirmForce: (n) => `توجد أصوات في هذه الفئة. حذف «${n}» نهائيًا مع جميع أصواتها؟ سيؤدي ذلك أيضًا إلى إزالة ارتباط العارضين بها، وقد يبقى بعضهم دون فئة. لا يمكن التراجع عن ذلك.`,
