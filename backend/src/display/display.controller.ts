@@ -29,7 +29,7 @@ export class DisplayController {
     private readonly voteQr: VoteQrService,
   ) {}
 
-  /** Exchange the key (from the admin's link) for a 7-day cookie bound to that key. */
+  /** Exchange the key (from the admin's link) for a 24-hour cookie bound to that key. */
   @Post('auth')
   @HttpCode(200)
   async auth(@ClientIp() ip: string, @Body() b: DisplayAuthDto, @Res({ passthrough: true }) res: Response) {
@@ -39,12 +39,12 @@ export class DisplayController {
       await this.audit.record('display', 'display_auth_failed', {}, ip);
       throw new AppError(401, 'bad_key', 'Invalid display key.');
     }
-    this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '7d');
+    this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '24h');
     return { ok: true };
   }
 
   /**
-   * A signed-in admin opening the screen directly gets the same 7-day display cookie the key link gives,
+   * A signed-in admin opening the screen directly gets the same 24-hour display cookie the key link gives,
    * so the screen keeps running after the admin signs out.
    */
   @Post('pair')
@@ -53,7 +53,7 @@ export class DisplayController {
   async pair(@Res({ passthrough: true }) res: Response) {
     const s = await this.settings.getAll(true);
     if (!s.display.key) return { ok: false };
-    this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '7d');
+    this.sessions.set(res, 'mc_d', { typ: 'display', kv: SessionService.displayKeyVersion(s.display.key) }, '24h');
     return { ok: true };
   }
 

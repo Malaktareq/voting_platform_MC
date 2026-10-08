@@ -258,6 +258,13 @@ export default function Dashboard() {
     toast(opens || closes ? d.scheduleSaved : d.scheduleCleared); reload();
   });
 
+  const regenerateKey = () => run('regen-key', async () => {
+    if (!(await confirm(d.confirmRegen, { danger: true, confirmText: d.regenKey }))) return;
+    await api('/api/admin/display/rotate', { method: 'POST', body: {} });
+    toast(d.keyRegenerated, 'warn');
+    await reload();
+  });
+
   const copy = async (text: string, what: string) => {
     try { await navigator.clipboard.writeText(text); toast(t.common.copied(what)); }
     catch { toast(t.common.copyFailed, 'err'); }
@@ -355,6 +362,8 @@ export default function Dashboard() {
               <p className="muted small">{d.screenNote}</p>
               <div className="actions">
                 <button className="btn btn-sm" onClick={() => copy(links.displayUrl!, d.screenLink)}>{d.copyLink}</button>
+                <button className="btn btn-sm" onClick={() => copy(new URL(links.displayUrl!).searchParams.get('key') || '', d.screenKey)}>{d.copyKey}</button>
+                <button className="btn btn-sm btn-ghost danger" disabled={busy} aria-busy={pending === 'regen-key'} onClick={regenerateKey}>{pending === 'regen-key' ? d.regenerating : d.regenKey}</button>
                 <a className="btn btn-sm" href={links.displayUrl} target="_blank" rel="noopener">{d.openScreen}</a>
               </div>
             </div>

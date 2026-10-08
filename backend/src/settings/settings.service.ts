@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
+import { decrypt, encrypt } from '../common/crypto.util';
 import { AppError } from '../common/http-error';
 import { config } from '../config/config';
 import { BusService } from '../redis/bus.service';
@@ -24,6 +25,21 @@ export const DEFAULT_SETTINGS: AllSettings = {
   display: { key: null, show_counts: true, show_winners: false },
 };
 
+/**
+ * The display key is stored encrypted (AES-256-GCM, "v1:" prefix) and handed to the rest of the app as
+ * plaintext, because the admin console must be able to show it again. A legacy plaintext key still works
+ * and is encrypted at the next startup.
+ */
+const SEALED = 'v1:';
+export function sealDisplay<T extends { key?: string | null }>(d: T): T {
+  return d?.key && !d.key.startsWith(SEALED) ? { ...d, key: encrypt(d.key) } : d;
+}
+function openDisplay<T extends { key?: string | null }>(d: T): T {
+  if (!d?.key?.startsWith(SEALED)) return d;
+  // Undecryptable (data key changed): treat as unset so an admin can regenerate it.
+  try { return { ...d, key: decrypt(d.key) }; } catch { return { ...d, key: null }; }
+}
+
 @Injectable()
 export class SettingsService {
   private cache: AllSettings | null = null;
@@ -38,8 +54,14 @@ export class SettingsService {
   async ensureDefaults() {
     await this.ds.transaction(async manager => {
       for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
-        const val = k === 'display' ? { ...v, key: crypto.randomBytes(18).toString('base64url') } : v;
+        const val = k === 'display' ? sealDisplay({ ...v, key: crypto.randomBytes(18).toString('base64url') }) : v;
         await manager.query('INSERT INTO settings(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [k, val]);
+      }
+      // Encrypt a display key saved in plaintext by an earlier version.
+      const rows = await manager.query("SELECT value FROM settings WHERE key = 'display' FOR UPDATE");
+      const stored = rows[0]?.value;
+      if (stored?.key && !String(stored.key).startsWith(SEALED)) {
+        await manager.query("UPDATE settings SET value = $1 WHERE key = 'display'", [sealDisplay(stored)]);
       }
     });
   }
@@ -49,6 +71,7 @@ export class SettingsService {
     const rows: { key: SettingsKey; value: any }[] = await this.ds.query('SELECT key, value FROM settings');
     const out = structuredClone(DEFAULT_SETTINGS) as any;
     for (const r of rows) out[r.key] = { ...(out[r.key] || {}), ...r.value };
+    out.display = openDisplay(out.display);
     this.cache = out; this.cacheAt = Date.now();
     return out;
   }
@@ -80,9 +103,9 @@ export class SettingsService {
         await manager.query(
           `INSERT INTO settings(key, value, updated_at) VALUES ($1, $2, now())
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-          [key, next],
+          [key, key === 'display' ? sealDisplay(next as AllSettings['display']) : next],
         );
-        Object.assign(values, { [key]: next });
+        Object.assign(values, { [key]: key === 'display' ? openDisplay(next as AllSettings['display']) : next });
       }
       if (audit) await audit(manager);
       return values;
