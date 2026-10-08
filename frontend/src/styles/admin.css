@@ -627,3 +627,30 @@ body.admin .share-warn {
   background: color-mix(in srgb, var(--yellow) 22%, #fff); color: #6b4a00;
 }
 body.admin .share-warn a { color: inherit; font-weight: 700; }
+
+@media (max-width: 480px) {
+  body.admin .side { padding-inline: 12px; }
+  body.admin .nav { gap: 4px; }
+  body.admin .nav-item { padding: 9px 10px; font-size: 13px; }
+  body.admin .side-foot { justify-content: space-between; gap: 8px; }
+  body.admin .side-foot .who { min-width: 0; }
+  body.admin .side-foot .who > div { min-width: 0; }
+  body.admin .side-foot .who b,
+  body.admin .side-foot .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.admin .side-foot > .btn { flex: none; padding-inline: 10px; }
+  body.admin .main { padding: 16px 12px 36px; }
+  body.admin .card { padding: 16px; }
+  body.admin .card.flush { padding: 0; }
+  body.admin .login-card { padding: 28px 20px 24px; }
+  body.admin .page-head { align-items: flex-start; }
+  body.admin .page-head h1 { font-size: clamp(1.55rem, 7vw, 2rem); }
+  body.admin .cat-grid { grid-template-columns: minmax(0, 1fr); }
+  body.admin .toolbar { align-items: stretch; flex-direction: column; }
+  body.admin .toolbar > * { max-width: 100%; }
+  body.admin .search { width: 100%; }
+  body.admin .modal-card { padding: 18px 16px; }
+  body.admin .actions .btn { flex: 1 1 auto; }
+  body.admin .row-actions { white-space: normal; }
+  body.admin .row-actions .btn + .btn { margin-inline-start: 0; }
+  body.admin .pager { flex-wrap: wrap; padding-inline: 12px; }
+}
