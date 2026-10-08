@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../lib/api';
 import { connectResults, type LiveStatus } from '../lib/live-results';
 import type { CategoryResult, ResultsSnapshot } from '../lib/types';
@@ -212,23 +212,6 @@ function Column({ c, index, finalMode, showCounts, prev, text, lang }: { c: Cate
   const categoryStyle = { '--accent': DISPLAY_ACCENTS[index % DISPLAY_ACCENTS.length] } as React.CSSProperties;
   const shape = shapeFor(c.slug, c.name, index);
 
-  // FLIP: animate rows from their previous position when the ranking changes
-  const listRef = useRef<HTMLOListElement>(null);
-  const positions = useRef(new Map<string, number>());
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (!el) return;
-    el.querySelectorAll<HTMLElement>('[data-key]').forEach((row) => {
-      const key = row.dataset.key!;
-      const top = row.getBoundingClientRect().top;
-      const old = positions.current.get(key);
-      if (old != null && Math.abs(old - top) > 1) {
-        row.animate([{ transform: `translateY(${old - top}px)` }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.2,.8,.2,1)' });
-      }
-      positions.current.set(key, top);
-    });
-  });
-
   return (
     <section className={`col col-${index % 5}${finalMode ? ' is-final' : ''}`} style={categoryStyle}>
       <div className="col-head">
@@ -239,7 +222,7 @@ function Column({ c, index, finalMode, showCounts, prev, text, lang }: { c: Cate
         </div>
       </div>
       {lead ? null : <div className="leader empty"><p>{text.waiting}</p></div>}
-      <ol className="rows" ref={listRef} aria-label={`${c.name} ${text.standings}`}>
+      <ol className="rows" aria-label={`${c.name} ${text.standings}`}>
         {rows.map((s, rowIndex) => {
           const up = prevVotes.has(s.id) && prevVotes.get(s.id)! < s.votes;
           const pct = (s.votes / max) * 100;

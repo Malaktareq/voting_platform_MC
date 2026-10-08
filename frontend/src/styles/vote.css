@@ -1287,6 +1287,7 @@ body.vote .login-card .alert {
     overflow: hidden;
     padding: var(--login-top) 12px max(12px, env(safe-area-inset-bottom));
     place-items: center;
+    grid-template-columns: minmax(0, 1fr);
   }
   body.vote .maker-brand {
     top: max(12px, env(safe-area-inset-top));
@@ -1317,7 +1318,8 @@ body.vote .login-card .alert {
     position: relative;
     top: auto;
     left: auto;
-    width: min(560px, calc(100vw - 48px));
+    width: 100%;
+    max-width: 560px;
     min-width: 0;
     min-height: 0;
     height: auto;
@@ -1334,6 +1336,8 @@ body.vote .login-card .alert {
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
   }
+  body.vote .login-card > *,
+  body.vote .login-card :is(input, button, p, h1) { min-width: 0; max-width: 100%; }
   body.vote .eyebrow {
     margin-bottom: 6px;
     font-size: 12px;
