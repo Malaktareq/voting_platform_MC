@@ -43,7 +43,7 @@ Short ADR-style records of the choices that shape the system.
 **Why:** CPF selects the provider later (spec §6). A local Jordanian aggregator can be connected through the generic webhook with a ~20-line adapter. Demo mode echoes the code on screen in non-production only.
 
 ### D9 — Votes are final; retries are idempotent
-**Decision:** a visitor cannot change a vote; re-sending the *same* vote returns 200, a *different* one returns 409.
+**Decision:** a visitor cannot change a vote; duplicate category votes return 409 already_voted; the client restores the saved session.
 **Why:** finality is simple to explain and to audit; idempotency makes the client's automatic retries on flaky Wi-Fi safe.
 
 ### D10 — Images in PostgreSQL for the prototype

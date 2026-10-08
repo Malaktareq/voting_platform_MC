@@ -44,6 +44,8 @@ OTP_DEV_ECHO=true
 make
 ```
 
+On Windows, you can also run `node scripts/start-lan.mjs` directly. See [operation, verification and backup commands](docs/OPERATIONS.md).
+
 This starts Docker and the HTTPS gateway on port **8443** by default. Keep the terminal open and use the printed HTTPS address, adding `/admin` to sign in. The gateway uses a local self-signed certificate; follow the **[HTTPS/LAN guide](docs/LAN_EVENT_SETUP.md)** for first-time certificate setup. For automatic link detection, leave both `PUBLIC_URL` and the admin's saved public address empty; otherwise set the override to the correct HTTPS address.
 
 The configured admin is created only when no admin account exists; changing `.env` does not reset an existing password. Review the seeded demo categories/exhibitors, configure venue access and open voting. Open the display link from the dashboard; visitors scan its QR to vote. With the demo settings above, OTP codes are logged to the console and returned by the API for display on screen.
