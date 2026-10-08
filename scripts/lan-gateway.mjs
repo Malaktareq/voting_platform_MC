@@ -35,7 +35,10 @@ function lanAddresses() {
   const out = [];
   for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
     if (/vEthernet|WSL|docker|VirtualBox|VMware|Loopback|br-|veth/i.test(name)) continue;
-    for (const a of addrs || []) if (a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address);
+    for (const a of addrs || []) {
+      // Node reports family as either "IPv4" or 4, depending on its version.
+      if ((a.family === 'IPv4' || a.family === 4) && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address);
+    }
   }
   return out;
 }

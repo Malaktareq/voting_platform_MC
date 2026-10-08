@@ -62,16 +62,14 @@ export class VisitorController {
 
   @Post('otp/request')
   @HttpCode(200)
-  async requestOtp(@ClientIp() ip: string, @Req() req: Request, @Body() body: RequestOtpDto) {
-    await this.requireVoteQr(req, ip);
+  async requestOtp(@ClientIp() ip: string, @Body() body: RequestOtpDto) {
     await this.limits.checkIp('otp-ip', ip, 20, 5000, 600); // venue Wi-Fi NAT gets a large budget
     return this.svc.requestOtp(ip, body);
   }
 
   @Post('otp/verify')
   @HttpCode(200)
-  async verifyOtp(@ClientIp() ip: string, @Req() req: Request, @Body() body: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
-    await this.requireVoteQr(req, ip);
+  async verifyOtp(@ClientIp() ip: string, @Body() body: VerifyOtpDto, @Res({ passthrough: true }) res: Response) {
     await this.limits.checkIp('otp-verify-ip', ip, 60, 10000, 600);
     const visitorId = await this.svc.verifyOtp(body.challengeId, body.code);
     this.sessions.set(res, 'mc_v', { sub: visitorId, typ: 'visitor' }, config.sessions.visitorTtl);
@@ -111,9 +109,4 @@ export class VisitorController {
     return !!(await this.admins.load(req));
   }
 
-  private async requireVoteQr(req: Request, ip: string) {
-    if (!(await this.hasEntry(req, ip))) {
-      throw new AppError(403, 'vote_qr_required', 'Scan the current voting QR code on the venue screen before requesting a code.');
-    }
-  }
 }

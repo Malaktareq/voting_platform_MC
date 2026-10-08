@@ -39,7 +39,7 @@ export const T = {
     loginTitle: 'اختر', loginTitleAccent: 'صُنّاعك المفضّلين',
     qrTitle: 'امسح رمز QR في مكان الفعالية',
     awards: 'جوائز المجتمع', switchTo: 'English',
-    heroKicker: 'ملتقى الصُنّاع ٢٠٢٦', heroTitle: 'اختر صُنّاعك المفضّلين',
+    heroKicker: 'ملتقى الصناع 2026', heroTitle: 'اختر صُنّاعك المفضّلين',
     heroBody: (n: number) => `${n} جوائز · صوت واحد لكل جائزة · أقل من دقيقة.`,
     name: 'اسمك', namePh: 'مثال: سارة أحمد', number: 'رقمك',
     phone: 'رقم الهاتف', phonePh: '07X XXX XXXX', phoneHint: 'سنرسل لك رمزًا من ٦ أرقام. كل هاتف = مجموعة أصوات واحدة.',

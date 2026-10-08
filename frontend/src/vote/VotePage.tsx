@@ -6,7 +6,7 @@ import '../styles/vote.css';
 import { Ballot } from './Ballot';
 import { makeT } from './i18n';
 import { PublicLanguageButton, usePublicLanguage } from '../lib/public-language';
-import { ClosedScreen, DoneScreen, ErrorScreen, OffsiteScreen, QrRequiredScreen } from './Screens';
+import { ClosedScreen, DoneScreen, ErrorScreen, OffsiteScreen } from './Screens';
 import { checkLocation as requestLocationCheck, registrationGate } from './access';
 import { OtpScreen, RegisterScreen, type Challenge, type FormState } from './Signup';
 import { VoteContext } from './VoteContext';
@@ -124,8 +124,7 @@ export default function VotePage() {
   }, [load]);
 
   // Automatic and manual GPS both require backend approval before registration.
-  const needsAutoLocation = !!data?.access.needsLocation && !location &&
-    !(data.qrEntryRequired && !data.qrEntryAllowed) && qrEntry !== 'checking';
+  const needsAutoLocation = !!data?.access.needsLocation && !location && qrEntry !== 'checking';
   const accessMode = data?.access.mode;
   useEffect(() => {
     if (!needsAutoLocation || !accessMode || attemptedLocationMode.current === accessMode) return;
@@ -154,7 +153,7 @@ export default function VotePage() {
   }, [toast]);
 
   const ctx = { t, lang, data, session, setSession, location, setLocation, setOnSite, checkLocation, requireQr, reload: load, setToast };
-  const gate = data ? registrationGate(data, onSite, session) : null;
+  const gate = data ? registrationGate(onSite, session) : null;
 
   let screen: React.ReactNode;
   if (qrEntry === 'checking') {
@@ -166,8 +165,6 @@ export default function VotePage() {
   } else if (session) {
     const allDone = data.categories.length > 0 && data.categories.every((c) => session.votes[c.id]);
     screen = allDone ? <DoneScreen /> : <Ballot />;
-  } else if (gate === 'qr') {
-    screen = <QrRequiredScreen />;
   } else if (gate === 'offsite' && locating) {
     screen = <div className="loading" role="status">{t('locating')}</div>;
   } else if (gate === 'offsite') {

@@ -849,13 +849,18 @@ body.vote .maker-brand {
   position: absolute;
   z-index: 4;
   top: max(14px, env(safe-area-inset-top));
-  left: 50%;
+  left: 28%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   max-width: calc(100vw - 32px);
   pointer-events: none;
+}
+html[dir="rtl"] body.vote .maker-brand {
+  left: 28% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
 }
 body.vote .maker-brand img {
   width: var(--logo-w);
@@ -929,6 +934,10 @@ body.vote .yellow-arc {
   background: transparent;
   transform: none;
 }
+html[dir="rtl"] body.vote .yellow-arc {
+  left: -15%;
+  right: auto;
+}
 body.vote .yellow-arc::after {
   position: absolute;
   right: -80%;
@@ -938,6 +947,9 @@ body.vote .yellow-arc::after {
   transform: rotate(45deg);
   background: linear-gradient(120deg, #220cdd, #6122fa);
   content: "";
+}
+html[dir="rtl"] body.vote .yellow-arc::after {
+  right: -80%;
 }
 body.vote .line-rings {
   position: absolute;
@@ -1053,12 +1065,15 @@ body.vote .login-card {
     0 24px 60px -18px rgba(9, 15, 80, .25),
     0 2px 8px rgba(9, 15, 80, .06);
 }
+html[dir="rtl"] body.vote .login-card {
+  padding: 42px 48px 32px;
+}
 body.vote .login-card::-webkit-scrollbar { display: none; }
 body.vote .login-card::before {
   position: absolute;
   z-index: -1;
   inset: 0;
-  background: radial-gradient(circle at 0 0, #80dfe0 0 92px, transparent 93px) top left / 100% 100% no-repeat;
+  background: transparent;
   content: "";
   pointer-events: none;
 }
@@ -1079,6 +1094,10 @@ body.vote .eyebrow {
   text-align: center;
   text-transform: uppercase;
 }
+html[dir="rtl"] body.vote .eyebrow {
+  letter-spacing: 0;
+  text-transform: none;
+}
 body.vote .login-card h1 {
   margin: 0 0 26px;
   font-family: var(--font-display);
@@ -1089,6 +1108,10 @@ body.vote .login-card h1 {
   text-align: center;
   text-wrap: balance;
   color: #07177e;
+}
+html[dir="rtl"] body.vote .login-card h1 {
+  letter-spacing: 0;
+  line-height: 1.3;
 }
 body.vote .login-card h1 em {
   color: #7620e9;
@@ -1101,6 +1124,9 @@ body.vote .title-rule {
   margin: -12px auto 22px;
   border-radius: 999px;
   background: #f8d749;
+}
+html[dir="rtl"] body.vote .title-rule {
+  margin: -12px auto 22px;
 }
 body.vote .login-design-field {
   display: flex;
@@ -1172,6 +1198,7 @@ body.vote .login-design-submit {
   cursor: pointer;
   font-size: 20px;
   font-weight: 800;
+  letter-spacing: 0;
   transition: transform 180ms ease, box-shadow 180ms ease, opacity .15s ease;
 }
 body.vote .login-design-submit:hover:not(:disabled) {
