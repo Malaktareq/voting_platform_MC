@@ -105,10 +105,11 @@ export class VisitorService {
 
   // ------------------------------------------------------------------ OTP
   async requestOtp(ip: string, body: { name: string; phone: string; consent?: boolean; location?: LocationDto }) {
-    const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+    const name = String(body.name || '').normalize('NFC').trim().replace(/\s+/g, ' ');
+    const nameParts = name.split(' ').filter(Boolean);
     const phone = normalizePhone(String(body.phone || ''));
     const consent = body.consent === true;
-    if (name.length < 2 || name.length > 80) throw new AppError(400, 'bad_name', 'Please enter your name (2–80 characters).');
+    if (name.length > 80 || nameParts.length < 2) throw new AppError(400, 'bad_name', 'Enter your first and last name.');
     if (!phone) throw new AppError(400, 'bad_phone', 'Please enter a valid mobile number, e.g. 07X XXX XXXX.');
 
     await this.assertCanVote(ip, VisitorService.loc(body.location));
@@ -125,7 +126,21 @@ export class VisitorService {
       await m.query('LOCK TABLE votes IN ROW EXCLUSIVE MODE');
       const current = await m.query('SELECT key, value FROM settings');
       await this.assertCanVote(ip, VisitorService.loc(body.location), Object.fromEntries(current.map((row: any) => [row.key, row.value])) as AllSettings);
+      const nameKey = name.toLocaleLowerCase('en-US');
+      // Serialize requests for the same normalized name so two simultaneous signups
+      // cannot both pass the duplicate-name check.
+      await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`visitor-name:${nameKey}`]);
       await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`otp:${hash}`]);
+      const existingPhone = await m.query('SELECT id, name_enc FROM visitors WHERE phone_hash = $1 FOR UPDATE', [hash]);
+      if (existingPhone.length && decrypt(existingPhone[0].name_enc).normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US') !== nameKey) {
+        throw new AppError(409, 'phone_attached', 'This number is already attached to another user.');
+      }
+      const existingVisitors = await m.query('SELECT id, phone_hash, name_enc FROM visitors');
+      const duplicateName = existingVisitors.some((visitor: any) =>
+        visitor.phone_hash !== hash &&
+        decrypt(visitor.name_enc).normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US') === nameKey,
+      );
+      if (duplicateName) throw new AppError(409, 'duplicate_name', 'This name is already registered. Please use your own full name.');
       const rows = await m.query(
         `INSERT INTO visitors (name_enc, phone_enc, phone_hash, phone_last4, consent_outreach, created_ip)
        VALUES ($1, $2, $3, $4, $5, $6)

@@ -23,7 +23,7 @@ const derive = (info: string) => Buffer.from(crypto.hkdfSync('sha256', APP_SECRE
 export const config = {
   isProd,
   port: Number(env.PORT || 3000),
-  publicUrl: env.PUBLIC_URL || `http://localhost:${env.PORT || 3000}`,
+  publicUrl: env.PUBLIC_URL || '',
   databaseUrl: required('DATABASE_URL', 'postgres://mc:mc@localhost:5432/mc2026'),
   dbPoolSize: Number(env.DB_POOL_SIZE || 20),
   redisUrl: env.REDIS_URL || '', // optional — app degrades gracefully without it

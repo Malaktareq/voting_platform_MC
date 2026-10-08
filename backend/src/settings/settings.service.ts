@@ -13,7 +13,7 @@ import { AllSettings, SettingsKey, VotingState } from './settings.types';
 export const DEFAULT_SETTINGS: AllSettings = {
   event: { name: 'MC2026 Community Awards', tagline: 'Vote for your favourite makers', venue: '', public_url: '' },
   // Event times remain unset until supplied in Asia/Amman, then stored as ISO instants.
-  voting: { open: false, opens_at: null, closes_at: null },
+  voting: { open: false, opens_at: null, closes_at: null, ended_at: null },
   access: {
     mode: 'ip_and_geo',
     allowed_cidrs: [],
@@ -73,6 +73,7 @@ export class SettingsService {
         await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`settings:${key}`]);
         const rows = await manager.query('SELECT value FROM settings WHERE key = $1 FOR UPDATE', [key]);
         const next = { ...DEFAULT_SETTINGS[key], ...rows[0]?.value, ...patches[key] };
+        if (key === 'voting' && patches.voting?.open === true) (next as AllSettings['voting']).ended_at = null;
         if (key === 'voting' && next.opens_at && next.closes_at && Date.parse(next.closes_at) <= Date.parse(next.opens_at)) {
           throw new AppError(400, 'bad_voting_window', 'Voting end must be after voting start.');
         }
@@ -91,17 +92,19 @@ export class SettingsService {
     return values;
   }
 
-  /** Address visitors' phones open (QR code, shared links): the admin's setting, else PUBLIC_URL. No trailing slash. */
-  async publicBase(): Promise<string> {
+  /** Address visitors open: event override, configured PUBLIC_URL, then the host used by this request. */
+  async publicBase(requestOrigin?: string): Promise<string> {
     const s = await this.getAll();
-    return (s.event.public_url || config.publicUrl).replace(/\/+$/, '');
+    const fallback = config.publicUrl || requestOrigin || `http://localhost:${config.port}`;
+    return (s.event.public_url || fallback).replace(/\/+$/, '');
   }
 
   votingState(s: AllSettings): VotingState {
     const v = s.voting;
     const now = Date.now();
-    if (!v.open) return { open: false, reason: 'closed' };
+    if (v.ended_at) return { open: false, reason: 'ended', closes_at: v.ended_at };
     if (v.opens_at && now < Date.parse(v.opens_at)) return { open: false, reason: 'not_started', opens_at: v.opens_at };
+    if (!v.open) return { open: false, reason: 'closed' };
     if (v.closes_at && now >= Date.parse(v.closes_at)) return { open: false, reason: 'ended', closes_at: v.closes_at };
     return { open: true, closes_at: v.closes_at };
   }

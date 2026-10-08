@@ -59,19 +59,21 @@ function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const { toast } = useAdmin();
   const { t } = useLang();
   const r = t.results;
-  const [typed, setTyped] = useState('');
+  const [password, setPassword] = useState('');
   const [purge, setPurge] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const { busy, run } = useAction();
   return (
     <Modal title={r.resetTitle} busy={busy} onClose={onClose}>
       <div className="stack">
         <p>{r.resetBody}</p>
         <label className="check"><input type="checkbox" checked={purge} onChange={(e) => setPurge(e.target.checked)} /><span>{r.purge}</span></label>
-        <input className="input" dir="ltr" placeholder={r.typeReset} value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <label className="check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /><span>{r.confirmReset}</span></label>
+        <label className="field"><span>{r.adminPassword}</span><input className="input" dir="ltr" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
         <div className="actions">
           <button className="btn" disabled={busy} onClick={onClose}>{t.common.cancel}</button>
-          <button className="btn btn-danger" disabled={busy || typed !== 'RESET'} aria-busy={busy} onClick={() => run('reset', async () => {
-            const res = await api<{ deleted: number }>('/api/admin/results/reset', { method: 'POST', body: { confirm: 'RESET', purgeVisitors: purge } });
+          <button className="btn btn-danger" disabled={busy || !confirmed || !password} aria-busy={busy} onClick={() => run('reset', async () => {
+            const res = await api<{ deleted: number }>('/api/admin/results/reset', { method: 'POST', body: { password, purgeVisitors: purge } });
             toast(r.resetDone(res.deleted)); onDone();
           })}>{busy ? t.common.deleting : r.deleteAll}</button>
         </div>

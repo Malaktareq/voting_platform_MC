@@ -43,6 +43,7 @@ export class VotingSettingsDto {
   @IsOptional() @IsBoolean() open?: boolean;
   @IsOptional() @IsString() opens_at?: string | null;
   @IsOptional() @IsString() closes_at?: string | null;
+  @IsOptional() @IsString() ended_at?: string | null;
 }
 export class GeofenceDto {
   @IsNumber() @Min(-90) @Max(90) lat: number;
@@ -61,6 +62,8 @@ export class DisplaySettingsDto {
 }
 
 export class ResetDto {
-  @IsString() confirm: string;
+  @IsString() @MinLength(1) @MaxLength(200) password: string;
   @IsOptional() @IsBoolean() purgeVisitors?: boolean;
 }
+
+export class RestartDto { @IsString() confirm: string }

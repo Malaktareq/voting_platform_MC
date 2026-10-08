@@ -23,7 +23,7 @@ backend/    NestJS API — modules, guards, DTOs, TypeORM entities + migration, 
 frontend/   React SPA (Vite + TypeScript) — visitor page, TV dashboard, admin console
 scripts/    simulate.js (demo traffic) · loadtest.js (1,000-user load test)
 deploy/     nginx.conf (load balancer, SSE-aware)
-docs/       write-up, architecture, ERD, DFD, security, design decisions, deployment, load-test results
+docs/       write-up, architecture, security, [deployment](docs/DEPLOYMENT.md), [local LAN setup](docs/LAN_EVENT_SETUP.md), load-test results
 Dockerfile  one image: builds React, builds Nest, Nest serves the React app
 ```
 
@@ -31,7 +31,7 @@ Dockerfile  one image: builds React, builds Nest, Nest serves the React app
 
 **Docker (everything included):**
 ```bash
-cp .env.example .env        # set APP_SECRET, POSTGRES_PASSWORD, ADMIN_PASSWORD, PUBLIC_URL
+cp .env.example .env        # set APP_SECRET, POSTGRES_PASSWORD, ADMIN_PASSWORD
 docker compose up -d --build  # builds app, starts DB/Redis/nginx, runs seed data once
 ```
 The seed job loads fake categories and teams only when the database has no exhibitors yet. To wipe and reload demo data later, run `docker compose run --rm seed node dist/cli/seed.js --force`.

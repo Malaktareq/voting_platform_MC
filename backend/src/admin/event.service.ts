@@ -14,9 +14,15 @@ import { AccessSettingsDto, DisplaySettingsDto, EventSettingsDto, VotingSettings
 export class EventService {
   constructor(private readonly settings: SettingsService, private readonly audit: AuditService, private readonly voteQr: VoteQrService) {}
 
-  async get(ip: string) {
+  async get(ip: string, reportedNetworks: string[] = []) {
     const s = await this.settings.getAll(true);
-    return { settings: s, voting: this.settings.votingState(s), clientIp: ip };
+    const { invalid } = buildBlockList(reportedNetworks);
+    return {
+      settings: s,
+      voting: this.settings.votingState(s),
+      clientIp: ip,
+      clientNetworks: reportedNetworks.filter((network) => !invalid.includes(network)),
+    };
   }
 
   async updateEvent(actor: string, ip: string, b: EventSettingsDto) {
@@ -56,6 +62,7 @@ export class EventService {
     if (b.open !== undefined) patch.open = !!b.open;
     if (b.opens_at !== undefined) patch.opens_at = iso(b.opens_at);
     if (b.closes_at !== undefined) patch.closes_at = iso(b.closes_at);
+    if (b.ended_at !== undefined) patch.ended_at = iso(b.ended_at);
     if (patch.open !== true) return this.save(actor, ip, 'voting', patch);
     // Reopening and hiding the announcement either commit together or both roll back.
     const display = { show_winners: false };
@@ -99,9 +106,9 @@ export class EventService {
     return { ok: true };
   }
 
-  async links(isAdmin: boolean) {
+  async links(isAdmin: boolean, requestOrigin?: string) {
     const s = await this.settings.getAll(true);
-    const base = await this.settings.publicBase();
+    const base = await this.settings.publicBase(requestOrigin);
     const qr = await this.voteQr.entryQr(base);
     return {
       voteUrl: `${base}/`,

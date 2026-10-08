@@ -19,9 +19,9 @@
 .public-language:focus-visible { outline: 3px solid #7f32d9; outline-offset: 3px; }
 html body.vote .topbar { padding-inline-end: 128px; }
 html body.tv .hdr { padding-top: 58px; }
-body.vote.vote-login .maker-brand { left: 16px; right: auto; transform: none; max-width: calc(100vw - 132px); }
+body.vote.vote-login .maker-brand { left: 8px; right: auto; transform: none; max-width: calc(100vw - 148px); }
 body.vote.vote-login .maker-brand img { max-width: 100%; }
-html[dir="rtl"] body.vote.vote-login .maker-brand { left: auto; right: 16px; }
+html[dir="rtl"] body.vote.vote-login .maker-brand { left: 8px !important; right: auto !important; transform: none !important; }
 html[dir="rtl"] body.vote .login-card h1 { letter-spacing: 0; line-height: 1.4; }
 html[dir="rtl"] body.vote .login-design-field input:not([dir="ltr"]) { text-align: right; }
 html[dir="rtl"] body.vote .login-design-submit svg { transform: scaleX(-1); }

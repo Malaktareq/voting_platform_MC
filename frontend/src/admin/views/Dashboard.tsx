@@ -226,10 +226,24 @@ export default function Dashboard() {
     reload();
   });
 
+  const restartVoting = () => run('restart', async () => {
+    if (!(await confirm(d.confirmRestart, { danger: true, confirmText: d.restartBtn, typeToConfirm: 'RESET' }))) return;
+    const result = await api<{ deleted: number }>('/api/admin/results/restart', { method: 'POST', body: { confirm: 'RESET' } });
+    toast(d.restartDone(result.deleted));
+    await reload();
+  });
+
   const closeNow = () => run('voting', async () => {
     if (!(await confirm(d.confirmClose, { danger: true, confirmText: d.closeBtn }))) return;
     await saveSettings('voting', { open: false });
     toast(d.closedToast);
+    reload();
+  });
+
+  const endNow = () => run('voting', async () => {
+    if (!(await confirm(d.confirmEnd, { danger: true, confirmText: d.endBtn }))) return;
+    await saveSettings('voting', { open: false, ended_at: new Date().toISOString() });
+    toast(d.endedToast);
     reload();
   });
 
@@ -269,8 +283,16 @@ export default function Dashboard() {
             <div className="actions">
               {waiting && <button type="button" className="btn btn-ghost" disabled={busy} onClick={switchOff}>{d.switchOff}</button>}
               {voting.open
-                ? <button type="button" className="btn btn-lg btn-danger" disabled={busy} aria-busy={pending === 'voting'} onClick={closeNow}>{pending === 'voting' ? d.updating : d.closeBtn}</button>
-                : <button type="button" className="btn btn-lg btn-go" disabled={busy} aria-busy={pending === 'voting'} onClick={openNow}>{pending === 'voting' ? d.updating : waiting ? d.openNowBtn : ended ? d.reopenBtn : d.openBtn}</button>}
+                ? <>
+                    <button type="button" className="btn btn-lg btn-ghost" disabled={busy} aria-busy={pending === 'voting'} onClick={closeNow}>{pending === 'voting' ? d.updating : d.closeBtn}</button>
+                    <button type="button" className="btn btn-lg btn-danger" disabled={busy} aria-busy={pending === 'voting'} onClick={endNow}>{pending === 'voting' ? d.updating : d.endBtn}</button>
+                  </>
+                : ended
+                  ? <>
+                      <button type="button" className="btn btn-lg btn-go" disabled={busy} aria-busy={pending === 'voting'} onClick={openNow}>{pending === 'voting' ? d.updating : d.continueBtn}</button>
+                      <button type="button" className="btn btn-lg btn-danger" disabled={busy} aria-busy={pending === 'restart'} onClick={restartVoting}>{pending === 'restart' ? d.updating : d.restartBtn}</button>
+                    </>
+                  : <button type="button" className="btn btn-lg btn-go" disabled={busy} aria-busy={pending === 'voting'} onClick={openNow}>{pending === 'voting' ? d.updating : waiting ? d.openNowBtn : d.openBtn}</button>}
             </div>
           )}
         </div>
@@ -334,7 +356,7 @@ export default function Dashboard() {
           <div className="stack tight">
             <b>{d.votePage}</b>
             <code className="url" dir="ltr">{links.voteUrl}</code>
-            {isLocalAddress(links.voteUrl) && <p className="share-warn" role="note">{d.localWarn} <Link to="/admin/settings/event">{d.localFix}</Link></p>}
+            {isLocalAddress(links.voteUrl) && <p className="share-warn" role="note">{d.localWarn}</p>}
             <div className="actions">
               <button className="btn btn-sm" onClick={() => copy(links.voteUrl, d.voteLink)}>{d.copyLink}</button>
               <a className="btn btn-sm" href="/" target="_blank" rel="noopener" title={d.openPageHint}>{d.openPage}</a>

@@ -4,6 +4,7 @@ import { IsString, MaxLength } from 'class-validator';
 import { concatMap, Observable } from 'rxjs';
 import { safeEqual } from '../common/crypto.util';
 import { AppError } from '../common/http-error';
+import { requestOrigin } from '../common/request-origin';
 import { ClientIp } from '../auth/decorators';
 import { DisplayOrAdminGuard } from '../auth/guards';
 import { SessionService } from '../auth/session.service';
@@ -67,5 +68,5 @@ export class DisplayController {
   @Get('qr')
   @UseGuards(DisplayOrAdminGuard)
   @Header('Cache-Control', 'no-store')
-  async qr() { return this.voteQr.entryQr(await this.settings.publicBase(), 360); }
+  async qr(@Req() req: Request) { return this.voteQr.entryQr(await this.settings.publicBase(requestOrigin(req)), 360); }
 }

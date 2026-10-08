@@ -31,8 +31,7 @@ export class ReportsService {
     return toCsv(rows);
   }
 
-  async reset(actor: string, ip: string, confirm: string, purgeVisitors: boolean) {
-    if (confirm !== 'RESET') throw new AppError(400, 'confirm_required', 'Type RESET to confirm.');
+  async reset(actor: string, ip: string, purgeVisitors: boolean) {
     const deleted = await this.ds.transaction('REPEATABLE READ', async (manager) => {
       // Excludes vote writes until snapshot, deletion and audit have committed together.
       await manager.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');
@@ -58,6 +57,28 @@ export class ReportsService {
     await this.bus.publish('settings', { key: 'voting' });
     await this.bus.publish('results-changed', {});
     return { ok: true, deleted, votingClosed: true };
+  }
+
+  /** Clear ballots and immediately reopen a fresh voting round, keeping registrations. */
+  async restart(actor: string, ip: string, confirm: string) {
+    if (confirm !== 'RESET') throw new AppError(400, 'confirm_required', 'Type RESET to confirm.');
+    const deleted = await this.ds.transaction('REPEATABLE READ', async manager => {
+      await manager.query('LOCK TABLE votes IN SHARE ROW EXCLUSIVE MODE');
+      const before = await this.results.snapshotForReset(manager);
+      await manager.query(`UPDATE settings SET value = value || '{"open":true,"ended_at":null,"opens_at":null,"closes_at":null}'::jsonb,
+        updated_at = now() WHERE key = 'voting'`);
+      await manager.query(`UPDATE settings SET value = value || '{"show_winners":false}'::jsonb,
+        updated_at = now() WHERE key = 'display'`);
+      const res = await manager.query('DELETE FROM votes');
+      const count = Array.isArray(res) ? res[1] : 0;
+      await manager.query('INSERT INTO audit_log(actor, action, detail, ip) VALUES ($1,$2,$3,$4)',
+        [actor, 'results_restarted', { deleted_votes: count, snapshot: before }, ip]);
+      return count;
+    });
+    await this.bus.publish('settings', { key: 'voting' });
+    await this.bus.publish('settings', { key: 'display' });
+    await this.bus.publish('results-changed', {});
+    return { ok: true, deleted, votingOpen: true };
   }
 
   async visitors(limitRaw?: string | number, offsetRaw?: string | number) {
